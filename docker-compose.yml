@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: graphprobe-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_HOST=0.0.0.0
+      - APP_PORT=8000
+      - CORS_ORIGINS=http://localhost:3000,http://localhost:80
+    volumes:
+      - ./data:/app/data
+      - ./evaluation:/app/evaluation
+    env_file:
+      - .env
+    networks:
+      - graphprobe-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.path.insert(0, '.'); from app.main import app; print('OK')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: graphprobe-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - graphprobe-network
+    restart: unless-stopped
+
+networks:
+  graphprobe-network:
+    driver: bridge
+
+# Optional: TigerGraph service (commented out as it may run externally)
+# tigergraph:
+#   image: tigergraph/tigergraph:latest
+#   container_name: graphprobe-tigergraph
+#   ports:
+#     - "14240:14240"
+#   networks:
+#     - graphprobe-network
+#   restart: unless-stopped
