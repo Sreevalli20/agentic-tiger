@@ -22,7 +22,13 @@ export default function Investigate() {
       setResult(data)
     } catch (error) {
       console.error('Investigation failed:', error)
-      setError(error instanceof Error ? error.message : 'Investigation failed')
+      const errorMessage = error instanceof Error ? error.message : 'Investigation failed'
+      // Handle timeout specifically
+      if (errorMessage.includes('timed out')) {
+        setError('Investigation timed out. Please try a simpler question.')
+      } else {
+        setError(errorMessage)
+      }
     } finally {
       setIsLoading(false)
     }

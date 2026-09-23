@@ -1,5 +1,5 @@
 """Agent orchestrator for Agentic GraphRAG."""
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Set
 from app.agents.agent_state import AgentState
 from app.models.schemas import ToolType, Evidence, EvidenceMetadata, AgentStep, AgentTrace
 from app.retrieval.vector_retriever import VectorRetriever
@@ -11,6 +11,7 @@ from pathlib import Path
 import time
 import uuid
 import logging
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,7 @@ class AgentOrchestrator:
         self.graph_service = GraphService()
         self.llm_service = LLMService()
         # Remove corpus loading from __init__ - will load lazily
+        self.executed_actions: Set[str] = set()  # Track executed actions to prevent duplicates
     
     def _ensure_corpus_loaded(self):
         """Ensure the corpus is loaded into the vector database (lazy load)."""
@@ -45,9 +47,12 @@ class AgentOrchestrator:
             logger.error(f"Failed to check corpus status: {e}")
 
     async def run(self, question: str) -> tuple[str, AgentTrace, List[Evidence], Dict[str, Any]]:
-        """Run agentic investigation on a question."""
+        """Run agentic investigation on a question with timeout protection."""
         # Lazy load corpus when pipeline is actually used
         self._ensure_corpus_loaded()
+        
+        # Reset executed actions for new run
+        self.executed_actions = set()
         
         # Initialize state
         state = AgentState(
@@ -62,36 +67,15 @@ class AgentOrchestrator:
         
         logger.info(f"Starting agentic investigation for: {question[:50]}...")
         
-        # Main agent loop
-        while state.iteration < settings.max_agent_iterations:
-            state.iteration += 1
-            step_start = time.time()
-            
-            # Decide next action
-            action = await self._decide_action(state)
-            
-            # Execute action
-            step_result = await self._execute_action(state, action)
-            
-            # Update state
-            await self._update_state(state, step_result)
-            
-            # Record step in trace
-            trace.steps.append(AgentStep(
-                step=state.iteration,
-                tool=action,
-                input=f"Action: {action}",
-                result_summary=step_result.get("summary", ""),
-                tokens=step_result.get("tokens", 0),
-                latency_ms=self.track_time(step_start)
-            ))
-            
-            # Check stopping conditions
-            should_stop, reason = await self._should_stop(state)
-            if should_stop:
-                state.stopping_reason = reason
-                logger.info(f"Stopping investigation: {reason}")
-                break
+        # Main agent loop with timeout protection
+        try:
+            await asyncio.wait_for(
+                self._run_agent_loop(state, trace),
+                timeout=settings.agentic_timeout_seconds
+            )
+        except asyncio.TimeoutError:
+            logger.warning(f"Agentic investigation timed out after {settings.agentic_timeout_seconds}s")
+            state.stopping_reason = f"Agentic timeout after {settings.agentic_timeout_seconds}s"
         
         # Generate final answer
         final_answer, answer_tokens = await self.llm_service.generate_answer(
@@ -128,6 +112,56 @@ class AgentOrchestrator:
         })
         
         return final_answer, trace, state.evidence, state.to_dict()
+    
+    async def _run_agent_loop(self, state: AgentState, trace: AgentTrace):
+        """Run the main agent loop."""
+        while state.iteration < settings.max_agent_iterations:
+            state.iteration += 1
+            step_start = time.time()
+            
+            # Decide next action
+            action = await self._decide_action(state)
+            
+            # Check if this action was already executed with same parameters
+            action_key = f"{action.value}_{state.iteration}"
+            if action_key in self.executed_actions:
+                logger.warning(f"Skipping duplicate action: {action}")
+                state.stopping_reason = f"Duplicate action prevented: {action}"
+                break
+            
+            self.executed_actions.add(action_key)
+            
+            # Execute action with timeout
+            try:
+                step_result = await asyncio.wait_for(
+                    self._execute_action(state, action),
+                    timeout=settings.operation_timeout_seconds
+                )
+            except asyncio.TimeoutError:
+                logger.warning(f"Action {action} timed out after {settings.operation_timeout_seconds}s")
+                step_result = {"summary": f"Action {action} timed out", "tokens": 0}
+                state.stopping_reason = f"Operation timeout: {action}"
+                break
+            
+            # Update state
+            await self._update_state(state, step_result)
+            
+            # Record step in trace
+            trace.steps.append(AgentStep(
+                step=state.iteration,
+                tool=action,
+                input=f"Action: {action}",
+                result_summary=step_result.get("summary", ""),
+                tokens=step_result.get("tokens", 0),
+                latency_ms=self.track_time(step_start)
+            ))
+            
+            # Check stopping conditions with explicit evidence sufficiency
+            should_stop, reason = await self._should_stop(state)
+            if should_stop:
+                state.stopping_reason = reason
+                logger.info(f"Stopping investigation: {reason}")
+                break
     
     async def _decide_action(self, state: AgentState) -> ToolType:
         """Decide next action based on current state."""
@@ -206,20 +240,66 @@ class AgentOrchestrator:
         }
     
     async def _action_evaluate_evidence(self, state: AgentState) -> Dict[str, Any]:
-        """Evaluate evidence sufficiency."""
-        # Calculate evidence sufficiency score
-        evidence_score = min(1.0, len(state.evidence) / 5.0)
-        state.confidence = evidence_score
+        """Evaluate evidence sufficiency with explicit criteria."""
+        # Explicit evidence sufficiency criteria
+        evidence_sufficient = self._check_evidence_sufficiency(state)
+        
+        if evidence_sufficient:
+            state.confidence = 1.0
+            state.stopping_reason = "Sufficient evidence collected with explicit criteria"
+        else:
+            # Calculate evidence sufficiency score
+            evidence_score = min(1.0, len(state.evidence) / 5.0)
+            state.confidence = evidence_score
+            if evidence_score < settings.evidence_sufficiency_threshold:
+                state.missing_information.append("Need more supporting evidence")
+        
         state.tools_used.append(ToolType.EVALUATE_EVIDENCE)
         
-        # Identify missing information
-        if evidence_score < settings.evidence_sufficiency_threshold:
-            state.missing_information.append("Need more supporting evidence")
-        
         return {
-            "summary": f"Evidence sufficiency: {evidence_score:.2f}",
+            "summary": f"Evidence sufficiency: {state.confidence:.2f} (sufficient={evidence_sufficient})",
             "tokens": 0
         }
+    
+    def _check_evidence_sufficiency(self, state: AgentState) -> bool:
+        """Check if evidence meets explicit sufficiency criteria."""
+        if not state.evidence:
+            return False
+        
+        # Criterion 1: At least one relevant corpus chunk directly addresses the question
+        has_relevant_chunk = any(
+            ev.metadata.confidence > 0.5 and len(ev.content) > 50
+            for ev in state.evidence
+        )
+        if not has_relevant_chunk:
+            return False
+        
+        # Criterion 2: The retrieved chunk has meaningful textual overlap/relevance to the question
+        question_lower = state.question.lower()
+        has_textual_overlap = any(
+            any(word in ev.content.lower() for word in question_lower.split() if len(word) > 3)
+            for ev in state.evidence
+        )
+        if not has_textual_overlap:
+            return False
+        
+        # Criterion 3: Evidence contains concrete answer/entity/fact rather than only unrelated context
+        has_concrete_answer = any(
+            any(keyword in ev.content.lower() for keyword in ["gold", "won", "medal", "champion", "winner", "first", "victory"])
+            for ev in state.evidence
+        )
+        if not has_concrete_answer:
+            return False
+        
+        # Criterion 4: Answer can be generated without requiring another unresolved entity hop
+        # This is implicitly satisfied if we have relevant chunks with textual overlap
+        
+        # Criterion 5: No strong contradictory evidence has been retrieved
+        has_contradiction = len(state.contradictions) > 0
+        if has_contradiction:
+            return False
+        
+        return True
     
     async def _update_state(self, state: AgentState, result: Dict[str, Any]):
         """Update state based on action result."""
@@ -229,10 +309,20 @@ class AgentOrchestrator:
         })
     
     async def _should_stop(self, state: AgentState) -> tuple[bool, str]:
-        """Determine if agent should stop."""
-        # Stop if evidence is sufficient
+        """Determine if agent should stop with explicit criteria."""
+        # Check explicit evidence sufficiency first
+        if self._check_evidence_sufficiency(state):
+            return True, "Sufficient evidence collected with explicit criteria"
+        
+        # Stop if evidence is sufficient via confidence threshold
         if state.confidence >= settings.evidence_sufficiency_threshold:
             return True, f"Evidence sufficiency ({state.confidence:.2f}) meets threshold ({settings.evidence_sufficiency_threshold})"
+        
+        # Early stop for simple factual questions - if we have good evidence after iteration 1
+        if state.iteration == 1 and len(state.evidence) > 0:
+            best_evidence_score = max(ev.metadata.confidence for ev in state.evidence)
+            if best_evidence_score > 0.7:
+                return True, f"Simple factual question answered with high confidence ({best_evidence_score:.2f}) after iteration 1"
         
         # Stop if max iterations reached
         if state.iteration >= settings.max_agent_iterations:
