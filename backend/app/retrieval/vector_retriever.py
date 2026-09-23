@@ -349,8 +349,13 @@ class VectorRetriever:
             from app.core.config import settings
             corpus_path = settings.production_corpus_path
             
-            # Try relative path first
+            # Try relative path first (from backend directory)
             corpus_file = Path(corpus_path)
+            if not corpus_file.exists():
+                # Try absolute path from backend directory
+                backend_dir = Path(__file__).parent.parent.parent
+                corpus_file = backend_dir / "corpus_production.jsonl"
+            
             if not corpus_file.exists():
                 # Try absolute path from project root
                 project_root = Path(__file__).parent.parent.parent.parent

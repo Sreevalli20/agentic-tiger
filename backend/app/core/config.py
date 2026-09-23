@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     
     # Production Configuration
     production_mode: bool = True
-    production_corpus_path: str = "./hackathon-resources/corpus/corpus_production.jsonl"
+    production_corpus_path: str = "./corpus_production.jsonl"
     production_max_docs: int = 40
     
     class Config:
