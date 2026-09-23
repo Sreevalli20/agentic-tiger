@@ -268,6 +268,13 @@ class VectorRetriever:
                 success = self.initialize_production_corpus(max_docs=settings.production_max_docs)
                 stats = self.get_collection_stats()
                 logger.info(f"After production initialization (success={success}): {stats}")
+                
+                # If still empty, try fallback
+                if stats.get('document_count', 0) == 0:
+                    logger.warning("Production corpus failed, trying fallback corpus")
+                    success = self._create_fallback_corpus(max_docs=settings.production_max_docs)
+                    stats = self.get_collection_stats()
+                    logger.info(f"After fallback initialization (success={success}): {stats}")
             
             # Generate query embedding based on model type
             if self.embedding_type == 'sentence_transformers':
