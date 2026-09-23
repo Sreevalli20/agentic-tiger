@@ -35,10 +35,11 @@ async def lifespan(app: FastAPI):
             logger.error(f"Production mode initialization failed: {e}")
             import traceback
             traceback.print_exc()
-            final_stats = retriever.get_collection_stats()
-            logger.info(f"Startup initialization complete: {final_stats.get('document_count', 0)} chunks")
-        except Exception as e:
-            logger.error(f"Startup initialization failed: {e}")
+            try:
+                final_stats = retriever.get_collection_stats()
+                logger.info(f"Startup initialization complete: {final_stats.get('document_count', 0)} chunks")
+            except:
+                pass
     
     yield
     logger.info("Shutting down GraphProbe AI backend...")
