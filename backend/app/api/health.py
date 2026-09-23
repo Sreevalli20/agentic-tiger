@@ -131,7 +131,7 @@ async def initialize_production():
         }
 
 
-@router.get("/health/force-init")
+@router.post("/health/force-init")
 async def force_initialize():
     """Force initialize production corpus regardless of current state.
     
@@ -156,9 +156,13 @@ async def force_initialize():
         success = retriever.initialize_production_corpus(max_docs=settings.production_max_docs)
         final_stats = retriever.get_collection_stats()
         
+        # Force return actual stats
+        logger.info(f"Force init result: success={success}, chunks={final_stats.get('document_count', 0)}")
+        
         return {
             "success": success,
             "vector_db": final_stats,
+            "document_count": final_stats.get('document_count', 0),
             "message": "Production corpus force initialized" if success else "Initialization failed"
         }
     except Exception as e:
