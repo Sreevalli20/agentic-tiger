@@ -27,13 +27,13 @@ async def lifespan(app: FastAPI):
             stats = retriever.get_collection_stats()
             
             if stats.get('document_count', 0) == 0:
-                logger.info("Production mode: Vector DB empty, initializing production corpus")
+                logger.info("Production mode: Vector DB empty, initializing production corpus with fallback data")
                 success = retriever.initialize_production_corpus(max_docs=settings.production_max_docs)
                 if success:
                     final_stats = retriever.get_collection_stats()
                     logger.info(f"Production corpus initialized with {final_stats.get('document_count', 0)} chunks")
                 else:
-                    logger.warning("Failed to initialize production corpus during startup, will retry on health check")
+                    logger.warning("Failed to initialize production corpus during startup")
             else:
                 logger.info(f"Production mode: Vector DB has {stats.get('document_count', 0)} chunks")
         else:
