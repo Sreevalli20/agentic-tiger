@@ -31,7 +31,7 @@ async def health_check():
         if settings.production_mode and actual_stats.get('document_count', 0) == 0:
             logger.info("Production mode: Vector DB empty, initializing with fallback corpus")
             try:
-                retriever.initialize_production_corpus(max_docs=40)
+                retriever._create_fallback_corpus(max_docs=40)
                 actual_stats = retriever.get_collection_stats()
                 logger.info(f"After fallback initialization: {actual_stats}")
             except Exception as init_error:
