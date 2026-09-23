@@ -23,12 +23,12 @@ async def lifespan(app: FastAPI):
         if settings.production_mode:
             retriever = VectorRetriever()
             retriever._ensure_initialized()
+            retriever._ensure_embedding_model()
             stats = retriever.get_collection_stats()
             
             # Only initialize if still empty (build-time may have failed)
             if stats.get('document_count', 0) == 0:
                 logger.info("Production mode: Vector DB empty, initializing corpus at startup")
-                retriever._ensure_embedding_model()
                 retriever.initialize_production_corpus(max_docs=settings.production_max_docs)
             else:
                 logger.info(f"Production mode: Vector DB has {stats.get('document_count', 0)} chunks from build")
