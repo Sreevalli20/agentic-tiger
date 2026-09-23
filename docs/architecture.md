@@ -2,172 +2,312 @@
 
 ## System Overview
 
-GraphProbe AI is a multi-pipeline investigation platform that compares RAG, GraphRAG, and Agentic GraphRAG on the same questions and evidence corpus.
+GraphProbe AI is a multi-pipeline investigation platform that compares RAG, GraphRAG, and Agentic GraphRAG approaches on the same corpus and questions.
 
 ## Architecture Diagram
 
-```mermaid
-graph TB
-    User[User] --> Frontend[Frontend React/TypeScript]
-    Frontend --> API[FastAPI Backend]
-    
-    API --> Orchestrator[Orchestrator]
-    
-    Orchestrator --> RAG[RAG Pipeline]
-    Orchestrator --> GraphRAG[GraphRAG Pipeline]
-    Orchestrator --> Agentic[Agentic GraphRAG Pipeline]
-    
-    RAG --> Vector[Vector Retrieval]
-    GraphRAG --> GraphService[TigerGraph Service]
-    GraphRAG --> Vector
-    Agentic --> AgentOrchestrator[Agent Orchestrator]
-    
-    AgentOrchestrator --> EntityLink[Entity Linking]
-    AgentOrchestrator --> GraphService
-    AgentOrchestrator --> Vector
-    AgentOrchestrator --> EvidenceEval[Evidence Evaluation]
-    
-    GraphService --> TigerGraph[TigerGraph]
-    Vector --> ChromaDB[ChromaDB]
-    
-    RAG --> LLM[LLM Service]
-    GraphRAG --> LLM
-    Agentic --> LLM
-    
-    API --> Benchmark[Benchmark Runner]
-    Benchmark --> Orchestrator
-    
-    API --> Evaluation[Evaluation Pipeline]
-    Evaluation --> Metrics[Metrics Calculation]
-    
-    Frontend --> MetricsDashboard[Metrics Dashboard]
-    Metrics --> MetricsDashboard
-    
-    subgraph Storage
-        TigerGraph
-        ChromaDB
-        Results[(Benchmark Results)]
-        Traces[(Agent Traces)]
-    end
-    
-    style Frontend fill:#64ffda
-    style API fill:#00b4d8
-    style Orchestrator fill:#233554
-    style TigerGraph fill:#ff6b6b
-    style ChromaDB fill:#ffd93d
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         Frontend (React)                        │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐     │
+│  │Investigate│  │ Compare  │  │ Metrics  │  │  Trace   │     │
+│  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘     │
+└───────┼────────────┼────────────┼────────────┼──────────────┘
+        │            │            │            │
+        └────────────┴────────────┴────────────┘
+                               │
+                        ┌──────▼──────┐
+                        │   FastAPI   │
+                        │   Backend   │
+                        └──────┬──────┘
+                               │
+                ┌──────────────┼──────────────┐
+                │              │              │
+         ┌──────▼──────┐ ┌────▼────┐ ┌──────▼──────┐
+         │  Orchestrator│ │Benchmark│ │   API      │
+         └──────┬──────┘ └────┬────┘ └──────┬──────┘
+                │              │              │
+         ┌──────┴──────────────┴──────────────┐
+         │                                      │
+    ┌────▼────┐  ┌─────────┐  ┌────────────┐  │
+    │   RAG   │  │GraphRAG │  │  Agentic   │  │
+    └────┬────┘  └────┬────┘  └─────┬──────┘  │
+         │            │              │         │
+         └────────────┴──────────────┘         │
+                       │                        │
+            ┌──────────┴──────────┐            │
+            │                     │            │
+      ┌─────▼─────┐        ┌─────▼─────┐      │
+      │ Vector DB │        │TigerGraph │      │
+      │ (ChromaDB)│        │  Graph    │      │
+      └───────────┘        └───────────┘      │
+                                          │
+                                    ┌─────▼─────┐
+                                    │    LLM    │
+                                    │ (Google   │
+                                    │  Gemini)  │
+                                    └───────────┘
 ```
 
 ## Components
 
 ### Frontend
-- **Framework**: React with TypeScript
-- **Styling**: Tailwind CSS with custom dark theme
-- **Pages**: Overview, Investigate, Compare, Metrics, Agent Trace, Evidence Graph
+- **Framework**: React 18 with TypeScript
+- **Styling**: Tailwind CSS with custom glassmorphism theme
+- **Routing**: React Router
+- **HTTP Client**: Axios via custom API service
 - **Charts**: Recharts for metrics visualization
 
 ### Backend
-- **Framework**: FastAPI with Python
-- **API Endpoints**: Investigate, Compare, Benchmark, Health, Trace, Evidence, Metrics
-- **Services**: Orchestrator, LLM Service, TigerGraph Service, Vector Retriever
+- **Framework**: FastAPI with Python 3.12
+- **Server**: Gunicorn (production) / Uvicorn (development)
+- **API**: RESTful endpoints with OpenAPI documentation
+
+### Data Layer
+
+#### Vector Database (ChromaDB)
+- **Purpose**: Semantic document retrieval
+- **Embedding Model**: sentence-transformers/all-MiniLM-L6-v2
+- **Storage**: Persistent local storage
+- **Indexing**: HNSW with cosine similarity
+
+#### Graph Database (TigerGraph)
+- **Purpose**: Multi-hop reasoning and relationship traversal
+- **Schema**: 7 vertex types, 8 edge types
+- **Connection**: pyTigerGraph client
+- **Querying**: GSQL for graph traversal
 
 ### Pipelines
 
 #### RAG Pipeline
-1. Query embedding
-2. Vector similarity search (ChromaDB)
-3. Top-k document chunks retrieval
-4. LLM answer generation
-5. Citation extraction
+1. **Vector Retrieval**: Semantic search over document chunks
+2. **Answer Generation**: LLM synthesis with retrieved context
+3. **Citation**: Source attribution to documents
 
 #### GraphRAG Pipeline
-1. Entity extraction and linking
-2. TigerGraph graph lookup
-3. Multi-hop graph traversal
-4. Related entities and documents
-5. LLM answer generation with graph context
-6. Citation extraction
+1. **Entity Extraction**: Identify entities from question
+2. **Graph Traversal**: Navigate relationships in TigerGraph
+3. **Enhanced Retrieval**: Combine graph context with vector search
+4. **Answer Generation**: LLM synthesis with graph-augmented context
 
 #### Agentic GraphRAG Pipeline
-1. Stateful orchestrator with agent state
-2. Dynamic tool selection based on evidence
-3. Tools: Entity Link, Graph Traverse, Vector Search, Document Retrieve, Evidence Evaluate
-4. Stopping criteria: evidence sufficiency, max iterations, token budget
-5. Complete agent trace with step-by-step reasoning
+1. **State Management**: Track evidence, confidence, and investigation state
+2. **Dynamic Tool Selection**: Choose tools based on current state
+3. **Iterative Investigation**: Retrieve, evaluate, and verify evidence
+4. **Stopping Criteria**: Stop when evidence is sufficient or budget exhausted
+5. **Trace Generation**: Complete execution history
 
-### Storage
-
-#### TigerGraph
-- Graph entities and relationships
-- Multi-hop traversal support
-- Graph vector capabilities
-
-#### ChromaDB
-- Document chunks with embeddings
-- Vector similarity search
-- Metadata filtering
-
-#### File Storage
-- Benchmark results (JSON/JSONL)
-- Agent traces
-- Evaluation reports
+### Benchmark System
+- **Dataset**: 100 public evaluation questions with gold answers
+- **Pipelines**: All three pipelines tested on same questions
+- **Evaluation**: Accuracy, completeness, latency, token usage
+- **Persistence**: JSON storage with run metadata
+- **Metrics**: Per-pipeline and per-question-type analysis
 
 ## Data Flow
 
 ### Investigation Flow
 ```
-User Question → Frontend → API → Orchestrator → Pipeline Selection
-→ Retrieval (Vector/Graph) → Evidence Collection → LLM Generation
-→ Answer + Citations + Metrics → API → Frontend → Display
+User Question
+    ↓
+Frontend (Investigate Page)
+    ↓
+POST /api/investigate
+    ↓
+Orchestrator.run_pipeline()
+    ↓
+Pipeline.run() (RAG/GraphRAG/Agentic)
+    ↓
+Retrieval (Vector/Graph/Agent)
+    ↓
+Evidence Collection
+    ↓
+LLM Generation
+    ↓
+Answer + Citations + Metrics
+    ↓
+Frontend Display
 ```
 
 ### Benchmark Flow
 ```
-Evaluation Questions → Benchmark Runner → Orchestrator
-→ All Pipelines → Results Storage → Evaluation → Metrics
-→ Dashboard Visualization
+Load Evaluation Questions
+    ↓
+For Each Question:
+    For Each Pipeline:
+        Run Pipeline
+        Evaluate Answer
+        Record Metrics
+    ↓
+Aggregate Results
+    ↓
+Save to JSON
+    ↓
+Dashboard Display
 ```
 
-### Agentic Flow
+### Ingestion Flow
 ```
-Question → Agent State → Decision Policy → Tool Selection
-→ Action Execution → State Update → Evidence Evaluation
-→ Stopping Check → (Continue/Stop) → Final Answer + Trace
+hackathon-resources/corpus.jsonl
+    ↓
+Dataset Parser
+    ↓
+Event Extraction
+    ↓
+Entity Extraction (Athletes, Nations, Venues)
+    ↓
+TigerGraph Schema Creation
+    ↓
+Vertex Loading
+    ↓
+Edge Loading
+    ↓
+Validation
+    ↓
+Vector Database Indexing
 ```
 
-## Key Design Decisions
+## Technology Stack
 
-### Why Three Pipelines?
-- **RAG**: Baseline for simple retrieval
-- **GraphRAG**: Demonstrates value of structural relationships
-- **Agentic**: Shows when adaptive investigation justifies additional cost
+### Backend
+- **Language**: Python 3.12
+- **Web Framework**: FastAPI
+- **Graph Database**: TigerGraph (pyTigerGraph)
+- **Vector Database**: ChromaDB
+- **Embeddings**: Sentence Transformers
+- **LLM**: Google Gemini (with OpenAI/Anthropic support)
+- **Data Processing**: Pandas, NumPy
+- **Evaluation**: RapidFuzz, NLTK
 
-### Why Stateful Agent?
-- Enables dynamic tool selection based on evidence
-- Supports adaptive investigation depth
-- Provides complete explainability through traces
+### Frontend
+- **Language**: TypeScript
+- **Framework**: React 18
+- **Build Tool**: Vite
+- **Styling**: Tailwind CSS
+- **Charts**: Recharts
+- **Icons**: Lucide React
+- **HTTP**: Axios
 
-### Why TigerGraph?
-- Native graph database with vector capabilities
-- Official hackathon requirement
-- Supports multi-hop traversal at scale
-
-### Why Separate Evaluation?
-- Ensures fair comparison across pipelines
-- Provides reproducible benchmarking
-- Enables classification of question types
-
-## Scalability Considerations
-
-- Async/await throughout for concurrent operations
-- Resumable benchmark execution
-- Configurable limits (iterations, tokens, hops)
-- Efficient vector indexing with ChromaDB
-- TigerGraph query optimization
+### Infrastructure
+- **Containerization**: Docker
+- **Orchestration**: Docker Compose
+- **Web Server**: Nginx (frontend)
+- **Application Server**: Gunicorn (backend)
 
 ## Security
 
-- Environment variables for all secrets
-- No hardcoded credentials
-- Input validation with Pydantic
-- CORS configuration
+### Environment Variables
+- All secrets stored in `.env` (not committed)
+- `.env.example` provides template
+- Docker Compose mounts `.env` from host
+
+### Data Protection
+- Hidden evaluation questions never exposed
+- Benchmark results stored locally
+- No secrets in logs or error messages
+- CORS configured for trusted origins
+
+### API Security
+- Health endpoint for monitoring
+- Input validation via Pydantic
 - Error handling without information leakage
+
+## Performance Considerations
+
+### Vector Retrieval
+- Document chunking: 500 characters with 50 overlap
+- Top-K retrieval: 5 chunks (configurable)
+- Embedding caching: ChromaDB persistence
+
+### Graph Traversal
+- Max hops: 2 (configurable)
+- Vertex deduplication: Primary key indexing
+- Edge traversal: Directional for performance
+
+### Agentic Investigation
+- Max iterations: 10 (configurable)
+- Token budget: 10,000 (configurable)
+- Evidence threshold: 0.8 (configurable)
+
+### Scalability
+- Vector DB: Handles 2,951 documents easily
+- Graph DB: < 10K vertices, < 20K edges
+- Benchmark: Async execution with background tasks
+- Frontend: Static files served by Nginx
+
+## Deployment
+
+### Development
+```bash
+# Backend
+cd backend
+python -m app.main
+
+# Frontend
+cd frontend
+npm run dev
+```
+
+### Production (Docker)
+```bash
+docker-compose up -d
+```
+
+### Cloud Deployment
+- **Frontend**: Vercel (static build)
+- **Backend**: Render (Docker container)
+- **TigerGraph**: TigerGraph Cloud or self-hosted
+
+## Monitoring
+
+### Health Checks
+- `/api/health`: Service status and connections
+- Docker health checks for containers
+- Uptime monitoring via restart policy
+
+### Logging
+- Python logging to stdout/stderr
+- Structured logging with levels
+- Error tracking with context
+
+### Metrics
+- Pipeline execution metrics
+- Benchmark aggregation
+- Per-question-type analysis
+- Dashboard visualization
+
+## Extension Points
+
+### Adding New Pipelines
+1. Create pipeline class inheriting from `BasePipeline`
+2. Implement `run()` method
+3. Add to `PipelineType` enum
+4. Register in orchestrator
+
+### Adding New Tools
+1. Add to `ToolType` enum
+2. Implement in `AgentOrchestrator`
+3. Add action execution method
+4. Update decision logic
+
+### Adding New Evaluation Metrics
+1. Extend evaluation function in `BenchmarkRunner`
+2. Add to metrics calculation
+3. Update dashboard display
+
+## Known Limitations
+
+1. **TigerGraph Dependency**: Requires TigerGraph instance for graph features
+2. **LLM Rate Limits**: Free tier may have rate limits
+3. **Vector DB Performance**: Local ChromaDB not optimized for production scale
+4. **Corpus Scope**: Limited to Olympic events dataset
+5. **Single Language**: English only (corpus language)
+
+## Future Enhancements
+
+1. **Temporal Reasoning**: Time-based entity relationships
+2. **Multi-modal**: Image and table support
+3. **Learned Policies**: ML-based tool selection
+4. **Distributed Processing**: Parallel benchmark execution
+5. **Real-time Updates**: Streaming investigation results
+6. **Advanced Visualization**: Interactive graph exploration

@@ -10,32 +10,38 @@ services:
       - "8000:8000"
     environment:
       - APP_HOST=0.0.0.0
-      - APP_PORT=8000
-      - CORS_ORIGINS=http://localhost:3000,http://localhost:80
+      - APP_PORT=${PORT:-8000}
+      - CORS_ORIGINS=http://localhost:3000,http://localhost:80,http://localhost
     volumes:
       - ./data:/app/data
       - ./evaluation:/app/evaluation
+      - ./hackathon-resources:/app/hackathon-resources:ro
     env_file:
       - .env
     networks:
       - graphprobe-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python", "-c", "import sys; sys.path.insert(0, '.'); from app.main import app; print('OK')"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 5s
+      start_period: 40s
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        - VITE_API_BASE_URL=http://localhost:8000
     container_name: graphprobe-frontend
     ports:
       - "80:80"
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     networks:
       - graphprobe-network
     restart: unless-stopped

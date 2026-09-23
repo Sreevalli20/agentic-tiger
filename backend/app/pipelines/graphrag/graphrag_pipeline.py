@@ -1,9 +1,12 @@
-"""GraphRAG pipeline with TigerGraph integration."""
+"""GraphRAG pipeline with real TigerGraph integration."""
+import json
 from app.pipelines.base import BasePipeline
 from app.models.schemas import PipelineResult, PipelineMetrics, PipelineType, Evidence, EvidenceMetadata, Citation, GraphContext
 from app.tigergraph.graph_service import GraphService
 from app.retrieval.vector_retriever import VectorRetriever
 from app.services.llm_service import LLMService
+from app.core.config import settings
+from pathlib import Path
 import time
 import logging
 
@@ -18,6 +21,39 @@ class GraphRAGPipeline(BasePipeline):
         self.graph_service = GraphService()
         self.vector_retriever = VectorRetriever()
         self.llm_service = LLMService()
+        self._ensure_corpus_loaded()
+    
+    def _ensure_corpus_loaded(self):
+        """Ensure the corpus is loaded into the vector database."""
+        try:
+            stats = self.vector_retriever.get_collection_stats()
+            
+            if stats.get('document_count', 0) == 0:
+                # Load corpus if not already loaded
+                # Try multiple possible locations
+                possible_paths = [
+                    Path(__file__).parent.parent.parent.parent.parent / "hackathon-resources" / "corpus" / "corpus.jsonl",
+                    Path(__file__).parent.parent.parent.parent / "hackathon-resources" / "corpus" / "corpus.jsonl",
+                    Path(__file__).parent.parent.parent / "hackathon-resources" / "corpus" / "corpus.jsonl",
+                    Path("hackathon-resources") / "corpus" / "corpus.jsonl",
+                    Path("../hackathon-resources") / "corpus" / "corpus.jsonl"
+                ]
+                
+                corpus_path = None
+                for path in possible_paths:
+                    if path.exists():
+                        corpus_path = path
+                        break
+                
+                if corpus_path:
+                    logger.info(f"Loading corpus into vector database from {corpus_path}...")
+                    self.vector_retriever.load_corpus(str(corpus_path))
+                else:
+                    logger.warning(f"Corpus file not found at any of {possible_paths}")
+            else:
+                logger.info(f"Vector database already contains {stats['document_count']} chunks")
+        except Exception as e:
+            logger.error(f"Failed to check/load corpus: {e}")
     
     async def run(self, question: str) -> PipelineResult:
         """Run GraphRAG pipeline on a question."""
@@ -29,7 +65,7 @@ class GraphRAGPipeline(BasePipeline):
         # Step 1: Entity extraction and linking
         entity_start = time.time()
         entities = await self.graph_service.extract_entities(question)
-        entity_time = self.track_time(entity_start)
+        metrics.retrieval_time_ms = self.track_time(entity_start)
         
         # Step 2: Graph traversal
         graph_start = time.time()
@@ -38,16 +74,44 @@ class GraphRAGPipeline(BasePipeline):
         metrics.graph_edges = graph_context.edges_traversed
         graph_time = self.track_time(graph_start)
         
-        # Step 3: Document retrieval based on graph
+        # Step 3: Document retrieval based on graph context
         retrieval_start = time.time()
-        chunks = await self.vector_retriever.search(question, top_k=5)
-        metrics.retrieval_time_ms = self.track_time(retrieval_start)
+        
+        # Use graph entities to enhance retrieval if available
+        if graph_context.entities:
+            # Combine question with entity names for better retrieval
+            enhanced_query = question + " " + " ".join(graph_context.entities[:3])
+            chunks = await self.vector_retriever.search(enhanced_query, top_k=settings.top_k_retrieval)
+        else:
+            chunks = await self.vector_retriever.search(question, top_k=settings.top_k_retrieval)
+        
+        metrics.retrieval_time_ms += self.track_time(retrieval_start)
         metrics.chunks_retrieved = len(chunks)
         metrics.retrieval_steps = 2  # Entity extraction + graph traversal
         
+        if not chunks:
+            logger.warning("No chunks retrieved for GraphRAG")
+            return PipelineResult(
+                pipeline=PipelineType.GRAPHRAG,
+                question=question,
+                answer="No relevant documents found in the corpus to answer this question.",
+                confidence=0.0,
+                evidence=[],
+                citations=[],
+                graph_context=graph_context,
+                metrics=metrics
+            )
+        
         # Step 4: Generate answer with graph context
         generation_start = time.time()
-        answer, tokens = await self.llm_service.generate_answer(question, chunks)
+        
+        # Add graph context to the prompt
+        enhanced_chunks = chunks.copy()
+        if graph_context.relationships:
+            graph_context_text = f"\n\nGraph Context:\n{json.dumps(graph_context.relationships[:5], indent=2)}"
+            enhanced_chunks.append({"content": graph_context_text, "document_id": "graph_context"})
+        
+        answer, tokens = await self.llm_service.generate_answer(question, enhanced_chunks)
         metrics.generation_time_ms = self.track_time(generation_start)
         metrics.input_tokens = tokens["input"]
         metrics.output_tokens = tokens["output"]
@@ -66,6 +130,22 @@ class GraphRAGPipeline(BasePipeline):
                     chunk_id=chunk.get("chunk_id", f"chunk_{i}")
                 )
             ))
+            
+            # Create citation for each evidence item
+            citations.append(Citation(
+                claim=f"Evidence {i+1}",
+                evidence_ids=[chunk.get("chunk_id", f"chunk_{i}")],
+                confidence=chunk.get("score", 0.0)
+            ))
+        
+        # Calculate confidence based on retrieval scores and graph traversal
+        if chunks:
+            avg_score = sum(chunk.get("score", 0.0) for chunk in chunks) / len(chunks)
+            # Boost confidence if graph traversal was successful
+            graph_boost = 0.1 if graph_context.nodes_visited > 0 else 0.0
+            confidence = min(1.0, avg_score + graph_boost)
+        else:
+            confidence = 0.0
         
         # Calculate total latency
         metrics.total_latency_ms = self.track_time(start_time)
@@ -74,7 +154,7 @@ class GraphRAGPipeline(BasePipeline):
             pipeline=PipelineType.GRAPHRAG,
             question=question,
             answer=answer,
-            confidence=0.75,  # Placeholder - will be calculated
+            confidence=confidence,
             evidence=evidence,
             citations=citations,
             graph_context=graph_context,

@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from app.core.config import settings
-from app.api import investigate, compare, benchmark, health, trace, evidence, metrics
+from app.api import investigate, compare, benchmark, health, trace, evidence, metrics, config
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -42,6 +42,7 @@ app.include_router(health.router, prefix="/api", tags=["health"])
 app.include_router(trace.router, prefix="/api", tags=["trace"])
 app.include_router(evidence.router, prefix="/api", tags=["evidence"])
 app.include_router(metrics.router, prefix="/api", tags=["metrics"])
+app.include_router(config.router, prefix="/api", tags=["config"])
 
 
 @app.get("/")

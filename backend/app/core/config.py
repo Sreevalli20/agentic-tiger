@@ -7,16 +7,19 @@ class Settings(BaseSettings):
     """Application settings."""
     
     # LLM Configuration
+    llm_provider: str = "google"
     llm_api_key: str = ""
-    llm_model: str = "gpt-4o-mini"
+    llm_model: str = "gemini-1.5-flash"
     llm_base_url: str = "https://api.openai.com/v1"
     
+    # Alternative Google AI key variable
+    google_api_key: str = ""
+    
     # TigerGraph Configuration
-    tigergraph_host: str = "localhost"
-    tigergraph_port: int = 14240
-    tigergraph_username: str = "tigergraph"
-    tigergraph_password: str = "tigergraph"
-    tigergraph_graph: str = "graphrag_hackathon"
+    tg_host: str = "localhost"
+    tg_port: int = 14240
+    tg_secret: str = ""
+    tg_graphname: str = "Transaction_Fraud"
     
     # Vector Database Configuration
     vector_db_path: str = "./data/vector_db"

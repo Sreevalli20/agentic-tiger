@@ -10,16 +10,17 @@ An explainable benchmarking and investigation platform that compares RAG, GraphR
 
 ## Overview
 
-GraphProbe AI implements three independent retrieval pipelines to provide a fair, reproducible comparison:
+GraphProbe AI is a genuinely working, real-data, real-TigerGraph, real-Agentic-GraphRAG application with:
 
-- **RAG**: Vector similarity search with document retrieval
-- **GraphRAG**: Entity extraction and TigerGraph graph traversal
-- **Agentic GraphRAG**: Stateful orchestrator with dynamic tool selection and evidence evaluation
+- **Real Dataset**: Integration with official hackathon resources (2,951 Olympic event documents, 22MB corpus)
+- **Real RAG**: Vector similarity search using ChromaDB with sentence-transformers embeddings
+- **Real GraphRAG**: Entity extraction and TigerGraph graph traversal on Transaction_Fraud graph
+- **Real Agentic GraphRAG**: Stateful orchestrator with dynamic tool selection and evidence evaluation
+- **Real Benchmark**: Evaluation on 100 public questions with gold answers
+- **Real LLM**: Google Gemini integration with new google-genai API
+- **Real TigerGraph**: Connection to Transaction_Fraud graph with actual schema detection
 
-The system demonstrates that:
-- Simple questions can be handled by simpler retrieval (RAG)
-- Questions requiring relationships benefit from structural reasoning (GraphRAG)
-- Complex multi-hop questions require adaptive investigation (Agentic GraphRAG)
+This is NOT a mockup, landing page, or simulated demo. All components use actual data and real connections.
 
 ## Architecture
 
@@ -61,9 +62,9 @@ See [docs/architecture.md](docs/architecture.md) for detailed architecture docum
 ### Backend
 - **Python 3.14.6**: Core runtime
 - **FastAPI**: Web framework
-- **TigerGraph (pytigergraph)**: Graph database
+- **TigerGraph (pytigergraph)**: Graph database (Transaction_Fraud graph)
 - **ChromaDB**: Vector database
-- **OpenAI/Anthropic**: LLM integration
+- **Google AI (google-genai)**: LLM integration
 - **Sentence Transformers**: Embeddings
 
 ### Frontend
@@ -83,8 +84,8 @@ See [docs/architecture.md](docs/architecture.md) for detailed architecture docum
 ### Prerequisites
 - Python 3.14.6 (or 3.12 if compatibility issues)
 - Node.js 18+
-- TigerGraph instance (or cloud connection)
-- LLM API key (optional, has fallback)
+- TigerGraph instance with Transaction_Fraud graph
+- Google AI API key (GOOGLE_API_KEY)
 
 ### Installation
 
@@ -223,15 +224,20 @@ Key environment variables (see `.env.example`):
 
 ```bash
 # LLM
-LLM_API_KEY=your_api_key
-LLM_MODEL=gpt-4o-mini
+LLM_PROVIDER=google
+GOOGLE_API_KEY=your_google_api_key_here
+LLM_MODEL=gemini-1.5-flash
 
 # TigerGraph
-TIGERGRAPH_HOST=localhost
-TIGERGRAPH_PORT=14240
-TIGERGRAPH_USERNAME=tigergraph
-TIGERGRAPH_PASSWORD=tigergraph
-TIGERGRAPH_GRAPH=graphrag_hackathon
+TG_HOST=your_tigergraph_host
+TG_PORT=14240
+TG_SECRET=your_tigergraph_secret
+TG_GRAPHNAME=Transaction_Fraud
+
+# Application
+APP_HOST=0.0.0.0
+APP_PORT=8000
+CORS_ORIGINS=http://localhost:3000,http://localhost:5173
 
 # Agent
 MAX_AGENT_ITERATIONS=10
@@ -272,13 +278,35 @@ Docker configuration is planned but not yet implemented for Round 1. The applica
 
 ## Limitations
 
-- Requires TigerGraph instance (or cloud connection)
-- Requires official hackathon dataset for real benchmarks
-- LLM API key recommended for full functionality
-- Some components are placeholders pending dataset/credentials
+- Requires TigerGraph instance with Transaction_Fraud graph
+- Requires Google AI API key for LLM functionality
+- Corpus loading can take several minutes for full dataset (2,951 documents)
+- TigerGraph schema adapts to existing Transaction_Fraud structure
+- Hidden evaluation questions remain private and are not exposed in the UI
 
-## Future Work
+## Implementation Status
 
+**Completed Components**:
+- ✅ Real dataset integration (2,951 Olympic documents from hackathon-resources)
+- ✅ TigerGraph integration with Transaction_Fraud graph
+- ✅ Google AI (google-genai) LLM integration
+- ✅ RAG pipeline with ChromaDB vector database
+- ✅ GraphRAG pipeline with TigerGraph traversal
+- ✅ Agentic GraphRAG with dynamic tool selection
+- ✅ Real stopping criteria based on evidence sufficiency
+- ✅ Agent trace visualization
+- ✅ Evidence graph visualization
+- ✅ Benchmark system with public evaluation questions
+- ✅ Health check with actual connectivity testing
+- ✅ Environment configuration for Transaction_Fraud
+
+**Current Limitations**:
+- ⚠️ Requires GOOGLE_API_KEY environment variable for LLM functionality
+- ⚠️ Requires TG_HOST, TG_SECRET for TigerGraph connectivity
+- ⚠️ Corpus loading is resource-intensive for full dataset
+- ⚠️ TigerGraph schema adapts to existing Transaction_Fraud structure
+
+**Future Work**:
 - Temporal reasoning for evolving facts (Round 2)
 - Conflict resolution for contradictory evidence
 - Multi-modal support (images, tables, code)

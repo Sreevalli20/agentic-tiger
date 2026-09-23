@@ -1,23 +1,76 @@
-__pycache__
-*.pyc
-*.pyo
-*.pyd
-.Python
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
 *.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
 *.egg
-*.egg-info
-dist
-build
-.venv
-venv
-ENV
-env
-.pytest_cache
-.coverage
-htmlcov
-.DS_Store
-*.log
+MANIFEST
+.venv/
+venv/
+ENV/
+env/
+
+# Environment
 .env
-.git
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Data
+data/raw/
+data/processed/
+data/official_dataset/
+data/vector_db/*
+!data/vector_db/.gitkeep
+evaluation/results/*.json
+evaluation/results/*.jsonl
+evaluation/results/*.csv
+!evaluation/results/.gitkeep
+
+# Logs
+*.log
+logs/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Git
+.git/
 .gitignore
-README.md
+
+# Docker
+Dockerfile
+.dockerignore

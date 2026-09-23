@@ -22,6 +22,7 @@ sdist/
 var/
 wheels/
 *.egg-info/
+*.dist-info/
 .installed.cfg
 *.egg
 MANIFEST
@@ -29,6 +30,7 @@ MANIFEST
 venv/
 ENV/
 env/
+attr/
 
 # Node
 node_modules/
@@ -56,6 +58,7 @@ evaluation/results/*.json
 evaluation/results/*.jsonl
 evaluation/results/*.csv
 !evaluation/results/.gitkeep
+hackathon-resources/
 
 # Logs
 *.log

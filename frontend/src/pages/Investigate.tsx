@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Send, Loader2 } from 'lucide-react'
+import { api } from '../services/api'
 
 type PipelineType = 'rag' | 'graphrag' | 'agentic'
 
@@ -8,21 +9,19 @@ export default function Investigate() {
   const [pipeline, setPipeline] = useState<PipelineType>('agentic')
   const [isLoading, setIsLoading] = useState(false)
   const [result, setResult] = useState<any>(null)
+  const [error, setError] = useState<string | null>(null)
 
   const handleInvestigate = async () => {
     if (!question.trim()) return
     
     setIsLoading(true)
+    setError(null)
     try {
-      const response = await fetch('/api/investigate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question, pipeline })
-      })
-      const data = await response.json()
+      const data = await api.investigate(question, pipeline)
       setResult(data)
     } catch (error) {
       console.error('Investigation failed:', error)
+      setError(error instanceof Error ? error.message : 'Investigation failed')
     } finally {
       setIsLoading(false)
     }
@@ -112,6 +111,14 @@ export default function Investigate() {
               <span className="text-sm text-gray-500">Evaluating evidence...</span>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Error */}
+      {error && (
+        <div className="glass-panel p-6 border border-red-500/50">
+          <h3 className="text-lg font-semibold text-red-400 mb-2">Error</h3>
+          <p className="text-gray-300">{error}</p>
         </div>
       )}
 

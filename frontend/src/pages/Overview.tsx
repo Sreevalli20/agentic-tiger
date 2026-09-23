@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { Search, GitBranch, BarChart3, Activity, ArrowRight } from 'lucide-react'
+import { Search, GitBranch, BarChart3, ArrowRight } from 'lucide-react'
 
 export default function Overview() {
   return (

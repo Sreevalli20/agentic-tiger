@@ -193,4 +193,5 @@ class HealthResponse(BaseModel):
     tigergraph_connected: bool = False
     vector_db_connected: bool = False
     llm_configured: bool = False
+    vector_db_stats: Optional[Dict[str, Any]] = None
     timestamp: datetime = Field(default_factory=datetime.utcnow)

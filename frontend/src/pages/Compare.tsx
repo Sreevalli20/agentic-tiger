@@ -1,28 +1,24 @@
 import { useState } from 'react'
 import { GitBranch, Loader2 } from 'lucide-react'
+import { api } from '../services/api'
 
 export default function Compare() {
   const [question, setQuestion] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [results, setResults] = useState<any>(null)
+  const [error, setError] = useState<string | null>(null)
 
   const handleCompare = async () => {
     if (!question.trim()) return
     
     setIsLoading(true)
+    setError(null)
     try {
-      const response = await fetch('/api/compare', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          question,
-          pipelines: ['rag', 'graphrag', 'agentic']
-        })
-      })
-      const data = await response.json()
+      const data = await api.compare(question, ['rag', 'graphrag', 'agentic'])
       setResults(data)
     } catch (error) {
       console.error('Comparison failed:', error)
+      setError(error instanceof Error ? error.message : 'Comparison failed')
     } finally {
       setIsLoading(false)
     }
@@ -63,6 +59,14 @@ export default function Compare() {
           </button>
         </div>
       </div>
+
+      {/* Error */}
+      {error && (
+        <div className="glass-panel p-6 border border-red-500/50">
+          <h3 className="text-lg font-semibold text-red-400 mb-2">Error</h3>
+          <p className="text-gray-300">{error}</p>
+        </div>
+      )}
 
       {/* Comparison Results */}
       {results && (
@@ -144,10 +148,10 @@ export default function Compare() {
               <label className="block text-sm font-medium text-gray-400 mb-2">Latency Comparison</label>
               <div className="bg-navy-900/50 rounded-lg p-4 border border-navy-700">
                 <div className="space-y-2">
-                  {Object.entries(results.comparison.latency_comparison).map(([pipeline, value]: [string, number]) => (
+                  {Object.entries(results.comparison.latency_comparison).map(([pipeline, value]) => (
                     <div key={pipeline} className="flex justify-between items-center">
                       <span className="text-sm text-gray-400 capitalize">{pipeline}</span>
-                      <span className="text-sm text-gray-300">{value.toFixed(0)}ms</span>
+                      <span className="text-sm text-gray-300">{typeof value === 'number' ? value.toFixed(0) : String(value)}ms</span>
                     </div>
                   ))}
                 </div>
@@ -158,10 +162,10 @@ export default function Compare() {
               <label className="block text-sm font-medium text-gray-400 mb-2">Token Comparison</label>
               <div className="bg-navy-900/50 rounded-lg p-4 border border-navy-700">
                 <div className="space-y-2">
-                  {Object.entries(results.comparison.token_comparison).map(([pipeline, value]: [string, number]) => (
+                  {Object.entries(results.comparison.token_comparison).map(([pipeline, value]) => (
                     <div key={pipeline} className="flex justify-between items-center">
                       <span className="text-sm text-gray-400 capitalize">{pipeline}</span>
-                      <span className="text-sm text-gray-300">{value}</span>
+                      <span className="text-sm text-gray-300">{String(value)}</span>
                     </div>
                   ))}
                 </div>
@@ -172,10 +176,10 @@ export default function Compare() {
               <label className="block text-sm font-medium text-gray-400 mb-2">Evidence Count</label>
               <div className="bg-navy-900/50 rounded-lg p-4 border border-navy-700">
                 <div className="space-y-2">
-                  {Object.entries(results.comparison.evidence_count).map(([pipeline, value]: [string, number]) => (
+                  {Object.entries(results.comparison.evidence_count).map(([pipeline, value]) => (
                     <div key={pipeline} className="flex justify-between items-center">
                       <span className="text-sm text-gray-400 capitalize">{pipeline}</span>
-                      <span className="text-sm text-gray-300">{value}</span>
+                      <span className="text-sm text-gray-300">{String(value)}</span>
                     </div>
                   ))}
                 </div>
