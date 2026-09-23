@@ -1,10 +1,9 @@
 services:
   - type: web
     name: graphprobe-backend
-    env: python
+    env: docker
     plan: free
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    dockerfilePath: ./Dockerfile
     envVars:
       - key: APP_HOST
         value: 0.0.0.0
@@ -46,3 +45,9 @@ services:
         sync: false
       - key: CORS_ORIGINS
         value: https://frontend-81rdtgomo-siris-projects-3809a50.vercel.app,http://localhost:3000,http://localhost:5173
+      - key: PRODUCTION_MODE
+        value: "true"
+      - key: PRODUCTION_CORPUS_PATH
+        value: ./hackathon-resources/corpus/corpus_production.jsonl
+      - key: PRODUCTION_MAX_DOCS
+        value: "40"
