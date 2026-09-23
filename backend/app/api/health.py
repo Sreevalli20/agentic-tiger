@@ -30,14 +30,19 @@ async def health_check():
         # If vector DB is empty and in production mode, initialize it
         if settings.production_mode and actual_stats.get('document_count', 0) == 0:
             logger.info("Production mode: Vector DB empty, initializing with fallback corpus")
-            retriever._create_fallback_corpus(max_docs=10)
-            actual_stats = retriever.get_collection_stats()
-            logger.info(f"After fallback initialization: {actual_stats}")
+            try:
+                retriever._create_fallback_corpus(max_docs=40)
+                actual_stats = retriever.get_collection_stats()
+                logger.info(f"After fallback initialization: {actual_stats}")
+            except Exception as init_error:
+                logger.error(f"Fallback initialization failed: {init_error}")
+                actual_stats = {'status': 'error', 'error': str(init_error)}
         
         if actual_stats.get('status') == 'initialized':
             vector_db_stats = actual_stats
     except Exception as e:
         logger.warning(f"Failed to get/initialize vector DB stats: {e}")
+        vector_db_stats = {'status': 'error', 'error': str(e)}
     
     return HealthResponse(
         status="healthy",
