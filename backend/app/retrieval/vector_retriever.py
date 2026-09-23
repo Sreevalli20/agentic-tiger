@@ -336,6 +336,7 @@ class VectorRetriever:
         """
         try:
             self._ensure_initialized()
+            self._ensure_embedding_model()
             stats = self.get_collection_stats()
             
             # Only initialize if completely empty
@@ -345,24 +346,17 @@ class VectorRetriever:
             
             logger.info("Vector DB is empty - initializing production corpus")
             
-            # Determine corpus path
-            from app.core.config import settings
-            corpus_path = settings.production_corpus_path
-            
-            # Try relative path first (from backend directory)
-            corpus_file = Path(corpus_path)
-            if not corpus_file.exists():
-                # Try absolute path from backend directory
-                backend_dir = Path(__file__).parent.parent.parent
-                corpus_file = backend_dir / "corpus_production.jsonl"
+            # Determine corpus path - try multiple locations
+            project_root = Path(__file__).parent.parent.parent.parent
+            corpus_file = project_root / "hackathon-resources" / "corpus" / "corpus_production.jsonl"
             
             if not corpus_file.exists():
-                # Try absolute path from project root
-                project_root = Path(__file__).parent.parent.parent.parent
-                corpus_file = project_root / "hackathon-resources" / "corpus" / "corpus_production.jsonl"
+                # Fallback to full corpus if production corpus doesn't exist
+                corpus_file = project_root / "hackathon-resources" / "corpus" / "corpus.jsonl"
+                logger.warning(f"Production corpus not found, using full corpus: {corpus_file}")
             
             if not corpus_file.exists():
-                logger.error(f"Production corpus file not found: {corpus_file}")
+                logger.error(f"Corpus file not found: {corpus_file}")
                 return False
             
             # Load the production corpus
