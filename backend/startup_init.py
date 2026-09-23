@@ -24,11 +24,14 @@ def main():
         stats = retriever.get_collection_stats()
         print(f"Current vector DB stats: {stats}")
         
-        # Clear existing data
-        if retriever.collection:
+        # Clear existing data if we have documents
+        if retriever.collection and stats.get('document_count', 0) > 0:
             try:
-                retriever.collection.delete()
-                logger.info("Cleared existing vector collection")
+                # Get all IDs and delete them
+                all_ids = retriever.collection.get()['ids']
+                if all_ids:
+                    retriever.collection.delete(ids=all_ids)
+                    logger.info(f"Cleared existing vector collection ({len(all_ids)} documents)")
             except Exception as clear_error:
                 logger.warning(f"Failed to clear collection: {clear_error}")
         
