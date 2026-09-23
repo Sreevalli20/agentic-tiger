@@ -29,6 +29,7 @@ class AgentOrchestrator:
         """Ensure the corpus is loaded into the vector database (lazy load)."""
         try:
             self.vector_retriever._ensure_initialized()
+            self.vector_retriever._ensure_embedding_model()
             stats = self.vector_retriever.get_collection_stats()
             
             # Only load if completely empty (0 documents)
@@ -36,6 +37,8 @@ class AgentOrchestrator:
                 logger.warning("Vector database is empty - attempting production initialization")
                 from app.core.config import settings
                 self.vector_retriever.initialize_production_corpus(max_docs=settings.production_max_docs)
+                stats = self.vector_retriever.get_collection_stats()
+                logger.info(f"After initialization: {stats}")
             else:
                 logger.info(f"Vector database already contains {stats['document_count']} chunks - using existing index")
         except Exception as e:

@@ -24,12 +24,15 @@ class RAGPipeline(BasePipeline):
         """Ensure the corpus is loaded into the vector database (lazy load)."""
         try:
             self.vector_retriever._ensure_initialized()
+            self.vector_retriever._ensure_embedding_model()
             stats = self.vector_retriever.get_collection_stats()
             
             # Only load if completely empty (0 documents)
             if stats.get('document_count', 0) == 0:
-                logger.warning("Vector database is empty - no indexed data available")
-                # Don't auto-load full corpus in production - use pre-indexed demo data
+                logger.warning("Vector database is empty - initializing with production corpus")
+                self.vector_retriever.initialize_production_corpus(max_docs=settings.production_max_docs)
+                stats = self.vector_retriever.get_collection_stats()
+                logger.info(f"After initialization: {stats}")
             else:
                 logger.info(f"Vector database already contains {stats['document_count']} chunks - using existing index")
         except Exception as e:
