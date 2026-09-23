@@ -9,6 +9,8 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+# Singleton instance for shared TF-IDF index
+_shared_retriever = None
 
 class VectorRetriever:
     """Lightweight retrieval service using TF-IDF with real corpus data."""
@@ -19,13 +21,28 @@ class VectorRetriever:
         Args:
             corpus_path: Path to corpus.jsonl file
         """
-        self.documents = []
-        self.metadatas = []
-        self.ids = []
-        self.tfidf_vectorizer = None
-        self.tfidf_matrix = None
-        self._initialized = False
-        self.corpus_path = corpus_path
+        global _shared_retriever
+        if _shared_retriever is not None:
+            # Use shared instance
+            self.documents = _shared_retriever.documents
+            self.metadatas = _shared_retriever.metadatas
+            self.ids = _shared_retriever.ids
+            self.tfidf_vectorizer = _shared_retriever.tfidf_vectorizer
+            self.tfidf_matrix = _shared_retriever.tfidf_matrix
+            self._initialized = _shared_retriever._initialized
+            self.corpus_path = corpus_path
+            logger.info("Using shared TF-IDF retriever instance")
+        else:
+            # Create new instance
+            self.documents = []
+            self.metadatas = []
+            self.ids = []
+            self.tfidf_vectorizer = None
+            self.tfidf_matrix = None
+            self._initialized = False
+            self.corpus_path = corpus_path
+            _shared_retriever = self
+            logger.info("Created new TF-IDF retriever instance")
     
     def _ensure_initialized(self):
         """Ensure TF-IDF index is initialized."""
@@ -108,6 +125,10 @@ class VectorRetriever:
                 ngram_range=(1, 2)
             )
             self.tfidf_matrix = self.tfidf_vectorizer.fit_transform(self.documents)
+            
+            # Update shared instance
+            global _shared_retriever
+            _shared_retriever = self
             
             logger.info(f"Successfully indexed {len(self.documents)} chunks from {doc_count} documents using TF-IDF")
             return True
@@ -240,14 +261,8 @@ class VectorRetriever:
             # Always initialize in production mode to ensure data is loaded
             # (in-memory DB needs data on every startup)
             if stats.get('document_count', 0) > 0:
-                logger.info(f"TF-IDF index has {stats['document_count']} chunks - clearing and reinitializing to ensure fresh data")
-                # Clear existing data
-                self.documents = []
-                self.metadatas = []
-                self.ids = []
-                self.tfidf_vectorizer = None
-                self.tfidf_matrix = None
-                logger.info("Cleared existing TF-IDF index")
+                logger.info(f"TF-IDF index has {stats['document_count']} chunks - using existing index (no reinitialization needed)")
+                return True
             
             logger.info("Initializing production corpus")
             
