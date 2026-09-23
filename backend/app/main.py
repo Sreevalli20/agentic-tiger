@@ -15,9 +15,25 @@ async def lifespan(app: FastAPI):
     """Application lifespan manager."""
     logger.info("Starting GraphProbe AI backend...")
     
-    # Don't initialize at startup - do it lazily on first request
-    # This avoids timeout issues on Render and allows fallback corpus creation
-    logger.info("Skipping startup initialization - will initialize on first request")
+    # Initialize vector database in production mode
+    if settings.production_mode:
+        logger.info("Production mode: Initializing vector database on startup")
+        try:
+            from app.retrieval.vector_retriever import VectorRetriever
+            retriever = VectorRetriever()
+            retriever._ensure_initialized()
+            retriever._ensure_embedding_model()
+            stats = retriever.get_collection_stats()
+            
+            if stats.get('document_count', 0) == 0:
+                logger.info("Vector DB empty, initializing with production corpus")
+                success = retriever.initialize_production_corpus(max_docs=settings.production_max_docs)
+                final_stats = retriever.get_collection_stats()
+                logger.info(f"Startup initialization complete: {final_stats.get('document_count', 0)} chunks")
+            else:
+                logger.info(f"Vector DB already has {stats.get('document_count', 0)} chunks")
+        except Exception as e:
+            logger.error(f"Startup initialization failed: {e}")
     
     yield
     logger.info("Shutting down GraphProbe AI backend...")

@@ -39,10 +39,10 @@ async def health_check():
                 # Still try to return current stats even if init failed
                 logger.info(f"Returning current stats despite init failure: {actual_stats}")
         
-        if actual_stats.get('status') == 'initialized':
+        # Always return actual stats if we have documents
+        if actual_stats.get('document_count', 0) > 0:
             vector_db_stats = actual_stats
-        elif actual_stats.get('document_count', 0) > 0:
-            # Even if status is not 'initialized', if we have documents, report them
+        elif actual_stats.get('status') == 'initialized':
             vector_db_stats = actual_stats
     except Exception as e:
         logger.warning(f"Failed to get/initialize vector DB stats: {e}")
