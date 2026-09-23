@@ -34,16 +34,19 @@ async def health_check():
                 success = retriever.initialize_production_corpus(max_docs=settings.production_max_docs)
                 actual_stats = retriever.get_collection_stats()
                 logger.info(f"After production initialization (success={success}): {actual_stats}")
+                # Force return actual stats
+                vector_db_stats = actual_stats
             except Exception as init_error:
                 logger.error(f"Production initialization failed: {init_error}")
                 # Still try to return current stats even if init failed
                 logger.info(f"Returning current stats despite init failure: {actual_stats}")
-        
-        # Always return actual stats if we have documents
-        if actual_stats.get('document_count', 0) > 0:
-            vector_db_stats = actual_stats
-        elif actual_stats.get('status') == 'initialized':
-            vector_db_stats = actual_stats
+                vector_db_stats = actual_stats
+        else:
+            # Return actual stats if we have documents
+            if actual_stats.get('document_count', 0) > 0:
+                vector_db_stats = actual_stats
+            elif actual_stats.get('status') == 'initialized':
+                vector_db_stats = actual_stats
     except Exception as e:
         logger.warning(f"Failed to get/initialize vector DB stats: {e}")
         vector_db_stats = {'status': 'error', 'error': str(e)}
