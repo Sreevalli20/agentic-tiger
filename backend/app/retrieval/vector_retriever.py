@@ -252,13 +252,14 @@ class VectorRetriever:
             return []
         
         try:
-            # Check if collection is empty and initialize with fallback if needed
+            # Check if collection is empty and initialize with production corpus if needed
             stats = self.get_collection_stats()
             if stats.get('document_count', 0) == 0:
-                logger.info("Vector DB empty during search, initializing with fallback corpus")
-                self.initialize_production_corpus(max_docs=40)
+                logger.info("Vector DB empty during search, initializing with production corpus")
+                from app.core.config import settings
+                success = self.initialize_production_corpus(max_docs=settings.production_max_docs)
                 stats = self.get_collection_stats()
-                logger.info(f"After fallback initialization: {stats}")
+                logger.info(f"After production initialization (success={success}): {stats}")
             
             # Generate query embedding based on model type
             if self.embedding_type == 'sentence_transformers':
