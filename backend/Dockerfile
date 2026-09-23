@@ -18,6 +18,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
+# Copy corpus file from parent directory
+COPY ../corpus_production.jsonl ./corpus_production.jsonl
+
 # Verify corpus file exists
 RUN ls -la corpus_production.jsonl || echo "corpus_production.jsonl not found in /app"
 RUN find /app -name "corpus_production.jsonl" 2>/dev/null || echo "No corpus file found"
