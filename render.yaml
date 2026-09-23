@@ -4,7 +4,7 @@ services:
     env: python
     plan: free
     rootDir: backend
-    buildCommand: pip install -r requirements.txt && cp ../hackathon-resources/corpus/corpus_production.jsonl corpus_production.jsonl
+    buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     # Trigger rebuild for corpus initialization
     envVars:
