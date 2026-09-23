@@ -257,7 +257,6 @@ class VectorRetriever:
             
             # In Docker/Render, the working directory is /app (backend root)
             # Try current working directory first
-            from pathlib import Path
             cwd = Path.cwd()
             corpus_file = cwd / "corpus_production.jsonl"
             logger.info(f"Trying corpus path (cwd): {corpus_file}, exists: {corpus_file.exists()}")
