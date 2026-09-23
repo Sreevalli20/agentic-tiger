@@ -21,6 +21,9 @@ COPY . .
 # Create necessary directories
 RUN mkdir -p data/vector_db data
 
+# Run startup initialization
+RUN python startup_init.py
+
 # Expose port
 EXPOSE 8000
 
