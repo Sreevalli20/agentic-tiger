@@ -156,6 +156,8 @@ async def force_initialize():
                 logger.info("Cleared existing vector collection")
             except Exception as clear_error:
                 logger.warning(f"Failed to clear collection: {clear_error}")
+        
+        # Use production corpus initialization
         success = retriever.initialize_production_corpus(max_docs=settings.production_max_docs)
         final_stats = retriever.get_collection_stats()
         

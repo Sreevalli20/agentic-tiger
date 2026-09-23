@@ -23,4 +23,4 @@ services:
       - key: PRODUCTION_MAX_DOCS
         value: "40"
       - key: CORS_ORIGINS
-        value: https://frontend-jdmw8kj8a-siris-projects-3809a50.vercel.app,https://frontend-81rdtgomo-siris-projects-3809a50.vercel.app,https://frontend-eqzjr0em9-siris-projects-3809a50c.vercel.app,https://frontend-et7fx5ith-siris-projects-3809a50c.vercel.app
+        value: https://frontend-jdmw8kj8a-siris-projects-3809a50.vercel.app,https://frontend-81rdtgomo-siris-projects-3809a50.vercel.app,https://frontend-eqzjr0em9-siris-projects-3809a50c.vercel.app,https://frontend-et7fx5ith-siris-projects-3809a50c.vercel.app,https://frontend-k8nalx10n-siris-projects-3809a50c.vercel.app
