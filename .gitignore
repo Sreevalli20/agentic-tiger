@@ -55,6 +55,7 @@ dist-ssr/
 data/raw/
 data/processed/
 data/official_dataset/
+data/vector_db/
 evaluation/results/*.json
 evaluation/results/*.jsonl
 evaluation/results/*.csv
