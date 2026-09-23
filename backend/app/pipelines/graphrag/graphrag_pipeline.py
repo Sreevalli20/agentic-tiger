@@ -21,10 +21,10 @@ class GraphRAGPipeline(BasePipeline):
         self.graph_service = GraphService()
         self.vector_retriever = VectorRetriever()
         self.llm_service = LLMService()
-        self._ensure_corpus_loaded()
+        # Remove corpus loading from __init__ - will load lazily
     
     def _ensure_corpus_loaded(self):
-        """Ensure the corpus is loaded into the vector database."""
+        """Ensure the corpus is loaded into the vector database (lazy load)."""
         try:
             stats = self.vector_retriever.get_collection_stats()
             
@@ -54,11 +54,14 @@ class GraphRAGPipeline(BasePipeline):
                 logger.info(f"Vector database already contains {stats['document_count']} chunks")
         except Exception as e:
             logger.error(f"Failed to check/load corpus: {e}")
-    
+
     async def run(self, question: str) -> PipelineResult:
         """Run GraphRAG pipeline on a question."""
         start_time = time.time()
         metrics = self.create_metrics()
+        
+        # Lazy load corpus when pipeline is actually used
+        self._ensure_corpus_loaded()
         
         logger.info(f"Running GraphRAG pipeline for: {question[:50]}...")
         

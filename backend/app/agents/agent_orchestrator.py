@@ -22,10 +22,10 @@ class AgentOrchestrator:
         self.vector_retriever = VectorRetriever()
         self.graph_service = GraphService()
         self.llm_service = LLMService()
-        self._ensure_corpus_loaded()
+        # Remove corpus loading from __init__ - will load lazily
     
     def _ensure_corpus_loaded(self):
-        """Ensure the corpus is loaded into the vector database."""
+        """Ensure the corpus is loaded into the vector database (lazy load)."""
         try:
             stats = self.vector_retriever.get_collection_stats()
             
@@ -36,7 +36,7 @@ class AgentOrchestrator:
                     Path(__file__).parent.parent.parent.parent.parent / "hackathon-resources" / "corpus" / "corpus.jsonl",
                     Path(__file__).parent.parent.parent.parent / "hackathon-resources" / "corpus" / "corpus.jsonl",
                     Path(__file__).parent.parent.parent / "hackathon-resources" / "corpus" / "corpus.jsonl",
-                    Path("hackathon-resources") / "corpus" / "corpus" / "corpus.jsonl",
+                    Path("hackathon-resources") / "corpus" / "corpus.jsonl",
                     Path("../hackathon-resources") / "corpus" / "corpus.jsonl"
                 ]
                 
@@ -55,9 +55,12 @@ class AgentOrchestrator:
                 logger.info(f"Vector database already contains {stats['document_count']} chunks")
         except Exception as e:
             logger.error(f"Failed to check/load corpus: {e}")
-    
+
     async def run(self, question: str) -> tuple[str, AgentTrace, List[Evidence], Dict[str, Any]]:
         """Run agentic investigation on a question."""
+        # Lazy load corpus when pipeline is actually used
+        self._ensure_corpus_loaded()
+        
         # Initialize state
         state = AgentState(
             question=question,

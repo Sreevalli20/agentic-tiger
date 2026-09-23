@@ -16,40 +16,7 @@ class AgenticPipeline(BasePipeline):
     def __init__(self):
         """Initialize Agentic pipeline."""
         self.agent_orchestrator = AgentOrchestrator()
-        self.vector_retriever = VectorRetriever()
-        self._ensure_corpus_loaded()
-    
-    def _ensure_corpus_loaded(self):
-        """Ensure the corpus is loaded into the vector database."""
-        try:
-            stats = self.vector_retriever.get_collection_stats()
-            
-            if stats.get('document_count', 0) == 0:
-                # Load corpus if not already loaded
-                # Try multiple possible locations
-                possible_paths = [
-                    Path(__file__).parent.parent.parent.parent.parent / "hackathon-resources" / "corpus" / "corpus.jsonl",
-                    Path(__file__).parent.parent.parent.parent / "hackathon-resources" / "corpus" / "corpus.jsonl",
-                    Path(__file__).parent.parent.parent / "hackathon-resources" / "corpus" / "corpus.jsonl",
-                    Path("hackathon-resources") / "corpus" / "corpus" / "corpus.jsonl",
-                    Path("../hackathon-resources") / "corpus" / "corpus.jsonl"
-                ]
-                
-                corpus_path = None
-                for path in possible_paths:
-                    if path.exists():
-                        corpus_path = path
-                        break
-                
-                if corpus_path:
-                    logger.info(f"Loading corpus into vector database from {corpus_path}...")
-                    self.vector_retriever.load_corpus(str(corpus_path))
-                else:
-                    logger.warning(f"Corpus file not found at any of {possible_paths}")
-            else:
-                logger.info(f"Vector database already contains {stats['document_count']} chunks")
-        except Exception as e:
-            logger.error(f"Failed to check/load corpus: {e}")
+        # Remove corpus loading from __init__ - will load lazily in agent orchestrator
     
     async def run(self, question: str) -> PipelineResult:
         """Run Agentic GraphRAG pipeline on a question."""

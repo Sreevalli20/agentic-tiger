@@ -23,10 +23,13 @@ class VectorRetriever:
         self.collection = None
         self.embedding_model = None
         self.corpus_path = corpus_path
-        self._initialize()
+        # Lazy initialization - don't load at startup
     
-    def _initialize(self):
-        """Initialize ChromaDB client, collection, and embedding model."""
+    def _ensure_initialized(self):
+        """Ensure ChromaDB client and embedding model are initialized (lazy load)."""
+        if self.client is not None and self.collection is not None:
+            return  # Already initialized
+        
         try:
             # Initialize ChromaDB - use absolute path from backend directory
             from pathlib import Path
@@ -39,19 +42,27 @@ class VectorRetriever:
                 metadata={"hnsw:space": "cosine"}
             )
             
-            # Initialize embedding model
-            try:
-                self.embedding_model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
-                logger.info("Embedding model loaded successfully")
-            except Exception as e:
-                logger.error(f"Failed to load embedding model: {e}")
-                self.embedding_model = None
-            
-            logger.info("Vector retriever initialized successfully")
+            logger.info("ChromaDB initialized successfully")
         except Exception as e:
-            logger.error(f"Failed to initialize vector retriever: {e}")
+            logger.error(f"Failed to initialize ChromaDB: {e}")
             self.client = None
             self.collection = None
+    
+    def _ensure_embedding_model(self):
+        """Ensure embedding model is loaded (lazy load)."""
+        if self.embedding_model is not None:
+            return  # Already loaded
+        
+        try:
+            # Force CPU-only mode to avoid GPU memory issues
+            import os
+            os.environ['TORCH_CPU_ONLY'] = '1'
+            
+            self.embedding_model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2', device='cpu')
+            logger.info("Embedding model loaded successfully (CPU-only)")
+        except Exception as e:
+            logger.error(f"Failed to load embedding model: {e}")
+            self.embedding_model = None
     
     def load_corpus(self, corpus_path: str) -> bool:
         """Load and index the corpus into ChromaDB.
@@ -62,6 +73,9 @@ class VectorRetriever:
         Returns:
             True if successful, False otherwise
         """
+        self._ensure_initialized()
+        self._ensure_embedding_model()
+        
         if not self.embedding_model:
             logger.error("Embedding model not available")
             return False
@@ -172,6 +186,9 @@ class VectorRetriever:
         Returns:
             List of retrieved chunks with metadata
         """
+        self._ensure_initialized()
+        self._ensure_embedding_model()
+        
         if not self.collection:
             logger.warning("Vector collection not available, returning empty results")
             return []
