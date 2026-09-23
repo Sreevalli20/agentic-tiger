@@ -31,6 +31,14 @@ async def health_check():
         if settings.production_mode and actual_stats.get('document_count', 0) == 0:
             logger.info("Production mode: Vector DB empty, initializing with fallback corpus")
             try:
+                # Force clear any existing data first
+                if retriever.collection:
+                    try:
+                        retriever.collection.delete(where={})
+                        logger.info("Cleared existing vector collection")
+                    except Exception as clear_error:
+                        logger.warning(f"Failed to clear collection: {clear_error}")
+                
                 success = retriever._create_fallback_corpus(max_docs=40)
                 actual_stats = retriever.get_collection_stats()
                 logger.info(f"After fallback initialization (success={success}): {actual_stats}")
