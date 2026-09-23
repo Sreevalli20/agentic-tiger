@@ -65,6 +65,40 @@ async def health_check():
     )
 
 
+@router.get("/health/init")
+async def init_corpus():
+    """Initialize corpus on demand."""
+    try:
+        retriever = VectorRetriever()
+        retriever._ensure_initialized()
+        retriever._ensure_embedding_model()
+        
+        # Clear existing data
+        if retriever.collection:
+            try:
+                retriever.collection.delete(where={})
+                logger.info("Cleared existing vector collection")
+            except Exception as clear_error:
+                logger.warning(f"Failed to clear collection: {clear_error}")
+        
+        # Create fallback corpus
+        success = retriever._create_fallback_corpus(max_docs=40)
+        stats = retriever.get_collection_stats()
+        
+        return {
+            "success": success,
+            "vector_db_stats": stats,
+            "message": "Corpus initialization completed"
+        }
+    except Exception as e:
+        logger.error(f"Corpus initialization failed: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "message": "Corpus initialization failed"
+        }
+
+
 @router.post("/health/initialize")
 async def initialize_production():
     """Initialize production corpus if vector database is empty.
@@ -202,40 +236,6 @@ async def health_debug():
         logger.error(f"Health debug failed: {e}")
         return {
             "error": str(e)
-        }
-
-
-@router.post("/health/force-init")
-async def force_initialize_corpus():
-    """Force initialize corpus by clearing and recreating."""
-    try:
-        retriever = VectorRetriever()
-        retriever._ensure_initialized()
-        retriever._ensure_embedding_model()
-        
-        # Clear existing data
-        if retriever.collection:
-            try:
-                retriever.collection.delete(where={})
-                logger.info("Cleared existing vector collection")
-            except Exception as clear_error:
-                logger.warning(f"Failed to clear collection: {clear_error}")
-        
-        # Create fallback corpus
-        success = retriever._create_fallback_corpus(max_docs=40)
-        stats = retriever.get_collection_stats()
-        
-        return {
-            "success": success,
-            "vector_db_stats": stats,
-            "message": "Force initialization completed"
-        }
-    except Exception as e:
-        logger.error(f"Force initialization failed: {e}")
-        return {
-            "success": False,
-            "error": str(e),
-            "message": "Force initialization failed"
         }
 
 
