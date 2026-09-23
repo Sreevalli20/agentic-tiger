@@ -189,27 +189,28 @@ async def force_initialize():
 
 @router.post("/health/test-fallback")
 async def test_fallback():
-    """Test fallback corpus creation."""
+    """Test production corpus creation."""
     try:
         retriever = VectorRetriever()
         retriever._ensure_initialized()
         retriever._ensure_embedding_model()
         
-        logger.info("Testing fallback corpus creation")
-        success = retriever._create_fallback_corpus(max_docs=10)
+        logger.info("Testing production corpus creation")
+        from app.core.config import settings
+        success = retriever.initialize_production_corpus(max_docs=10)
         stats = retriever.get_collection_stats()
         
         return {
             "success": success,
             "vector_db_stats": stats,
-            "message": "Fallback corpus created" if success else "Fallback corpus creation failed"
+            "message": "Production corpus created" if success else "Production corpus creation failed"
         }
     except Exception as e:
-        logger.error(f"Failed to create fallback corpus: {e}")
+        logger.error(f"Failed to create production corpus: {e}")
         return {
             "success": False,
             "error": str(e),
-            "message": "Fallback corpus creation failed"
+            "message": "Production corpus creation failed"
         }
 
 
