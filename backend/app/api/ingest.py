@@ -137,3 +137,25 @@ async def get_ingestion_status():
     except Exception as e:
         logger.error(f"Failed to get ingestion status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/ingest/initialize-production")
+async def initialize_production_corpus():
+    """Initialize production corpus if vector database is empty.
+    
+    Returns:
+        Initialization status and statistics
+    """
+    try:
+        retriever = VectorRetriever()
+        success = retriever.initialize_production_corpus(max_docs=settings.production_max_docs)
+        stats = retriever.get_collection_stats()
+        
+        return {
+            "success": success,
+            "vector_db": stats,
+            "message": "Production corpus initialized" if success else "Production corpus already exists or initialization failed"
+        }
+    except Exception as e:
+        logger.error(f"Failed to initialize production corpus: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
