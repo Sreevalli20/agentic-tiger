@@ -369,22 +369,22 @@ class VectorRetriever:
             
             # Try backend directory first (for Render deployment)
             corpus_file = backend_dir / "corpus_production.jsonl"
-            logger.info(f"Trying corpus path: {corpus_file}")
+            logger.info(f"Trying corpus path: {corpus_file}, exists: {corpus_file.exists()}")
             
             if not corpus_file.exists():
                 # Try hackathon-resources in backend directory
                 corpus_file = backend_dir / "hackathon-resources" / "corpus" / "corpus_production.jsonl"
-                logger.info(f"Trying corpus path: {corpus_file}")
+                logger.info(f"Trying corpus path: {corpus_file}, exists: {corpus_file.exists()}")
             
             if not corpus_file.exists():
                 # Try project root (for local development)
                 corpus_file = project_root / "hackathon-resources" / "corpus" / "corpus_production.jsonl"
-                logger.info(f"Trying corpus path: {corpus_file}")
+                logger.info(f"Trying corpus path: {corpus_file}, exists: {corpus_file.exists()}")
             
             if not corpus_file.exists():
                 # Fallback to full corpus if production corpus doesn't exist
                 corpus_file = project_root / "hackathon-resources" / "corpus" / "corpus.jsonl"
-                logger.warning(f"Production corpus not found, using full corpus: {corpus_file}")
+                logger.warning(f"Production corpus not found, using full corpus: {corpus_file}, exists: {corpus_file.exists()}")
             
             if not corpus_file.exists():
                 logger.error(f"Corpus file not found at any location. Creating fallback sample data.")

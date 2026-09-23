@@ -28,7 +28,13 @@ async def lifespan(app: FastAPI):
             logger.info("Loading production corpus into in-memory vector DB")
             success = retriever.initialize_production_corpus(max_docs=settings.production_max_docs)
             final_stats = retriever.get_collection_stats()
-            logger.info(f"Startup initialization complete: {final_stats.get('document_count', 0)} chunks")
+            logger.info(f"Startup initialization complete: success={success}, chunks={final_stats.get('document_count', 0)}")
+            if not success or final_stats.get('document_count', 0) == 0:
+                logger.error("FAILED: Production corpus initialization did not load any documents")
+        except Exception as e:
+            logger.error(f"Production mode initialization failed: {e}")
+            import traceback
+            traceback.print_exc()
             final_stats = retriever.get_collection_stats()
             logger.info(f"Startup initialization complete: {final_stats.get('document_count', 0)} chunks")
         except Exception as e:
