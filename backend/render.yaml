@@ -44,7 +44,7 @@ services:
       - key: GOOGLE_API_KEY
         sync: false
       - key: CORS_ORIGINS
-        value: https://frontend-k2m1gbrva-siris-projects-3809a50c.vercel.app,http://localhost:3000,http://localhost:5173
+        value: https://frontend-jdmw8kj8a-siris-projects-3809a50.vercel.app,http://localhost:3000,http://localhost:5173
       - key: PRODUCTION_MODE
         value: "true"
       - key: PRODUCTION_CORPUS_PATH
