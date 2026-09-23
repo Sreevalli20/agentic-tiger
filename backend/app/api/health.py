@@ -74,3 +74,26 @@ async def initialize_production():
             "error": str(e),
             "message": "Initialization failed"
         }
+
+
+@router.get("/health/status")
+async def health_status():
+    """Get detailed health status including actual vector DB stats."""
+    try:
+        retriever = VectorRetriever()
+        retriever._ensure_initialized()
+        retriever._ensure_embedding_model()
+        stats = retriever.get_collection_stats()
+        
+        return {
+            "status": "healthy",
+            "llm_configured": bool(settings.google_api_key or settings.llm_api_key),
+            "tigergraph_configured": bool(settings.tg_host and settings.tg_secret),
+            "vector_db": stats
+        }
+    except Exception as e:
+        logger.error(f"Failed to get health status: {e}")
+        return {
+            "status": "error",
+            "error": str(e)
+        }
