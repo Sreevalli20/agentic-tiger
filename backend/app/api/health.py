@@ -185,7 +185,7 @@ async def force_initialize():
         }
 
 
-@router.get("/health/test-fallback")
+@router.post("/health/test-fallback")
 async def test_fallback():
     """Test fallback corpus creation."""
     try:
