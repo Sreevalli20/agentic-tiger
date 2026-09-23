@@ -348,27 +348,36 @@ class VectorRetriever:
             return {'status': 'error', 'error': str(e)}
     
     def initialize_production_corpus(self, max_docs: int = 40) -> bool:
-        """Initialize production corpus if vector database is empty.
+        """Initialize production corpus (always reloads in production mode).
         
         This loads a small subset of documents for production demo.
+        In production mode, always reloads to ensure fresh data in in-memory DB.
         
         Args:
             max_docs: Maximum number of documents to load
             
         Returns:
-            True if initialization was needed and successful, False otherwise
+            True if initialization was successful, False otherwise
         """
         try:
             self._ensure_initialized()
             self._ensure_embedding_model()
             stats = self.get_collection_stats()
             
-            # Only initialize if completely empty
+            # Always initialize in production mode to ensure data is loaded
+            # (in-memory DB needs data on every startup)
             if stats.get('document_count', 0) > 0:
-                logger.info(f"Vector DB already has {stats['document_count']} chunks - skipping initialization")
-                return False
+                logger.info(f"Vector DB has {stats['document_count']} chunks - clearing and reinitializing to ensure fresh data")
+                # Clear existing data
+                try:
+                    all_ids = self.collection.get()['ids']
+                    if all_ids:
+                        self.collection.delete(ids=all_ids)
+                        logger.info(f"Cleared {len(all_ids)} existing chunks from vector collection")
+                except Exception as clear_error:
+                    logger.warning(f"Failed to clear collection: {clear_error}")
             
-            logger.info("Vector DB is empty - initializing production corpus")
+            logger.info("Initializing production corpus")
             
             # Determine corpus path - try multiple locations in order
             backend_dir = Path(__file__).parent.parent.parent
