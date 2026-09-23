@@ -29,21 +29,21 @@ async def health_check():
         
         # If vector DB is empty and in production mode, initialize it
         if settings.production_mode and actual_stats.get('document_count', 0) == 0:
-            logger.info("Production mode: Vector DB empty, initializing with fallback corpus")
+            logger.info("Production mode: Vector DB empty, initializing with production corpus")
             try:
                 # Force clear any existing data first
                 if retriever.collection:
                     try:
-                        retriever.collection.delete(where={})
+                        retriever.collection.delete()
                         logger.info("Cleared existing vector collection")
                     except Exception as clear_error:
                         logger.warning(f"Failed to clear collection: {clear_error}")
                 
-                success = retriever._create_fallback_corpus(max_docs=40)
+                success = retriever.initialize_production_corpus(max_docs=settings.production_max_docs)
                 actual_stats = retriever.get_collection_stats()
-                logger.info(f"After fallback initialization (success={success}): {actual_stats}")
+                logger.info(f"After production initialization (success={success}): {actual_stats}")
             except Exception as init_error:
-                logger.error(f"Fallback initialization failed: {init_error}")
+                logger.error(f"Production initialization failed: {init_error}")
                 # Still try to return current stats even if init failed
                 logger.info(f"Returning current stats despite init failure: {actual_stats}")
         
@@ -76,13 +76,13 @@ async def init_corpus():
         # Clear existing data
         if retriever.collection:
             try:
-                retriever.collection.delete(where={})
+                retriever.collection.delete()
                 logger.info("Cleared existing vector collection")
             except Exception as clear_error:
                 logger.warning(f"Failed to clear collection: {clear_error}")
         
-        # Create fallback corpus
-        success = retriever._create_fallback_corpus(max_docs=40)
+        # Create production corpus
+        success = retriever.initialize_production_corpus(max_docs=settings.production_max_docs)
         stats = retriever.get_collection_stats()
         
         return {
@@ -149,6 +149,13 @@ async def force_initialize():
         retriever._ensure_embedding_model()
         
         logger.info("Force initializing production corpus")
+        # Clear existing data first
+        if retriever.collection:
+            try:
+                retriever.collection.delete()
+                logger.info("Cleared existing vector collection")
+            except Exception as clear_error:
+                logger.warning(f"Failed to clear collection: {clear_error}")
         success = retriever.initialize_production_corpus(max_docs=settings.production_max_docs)
         final_stats = retriever.get_collection_stats()
         
@@ -168,7 +175,7 @@ async def force_initialize():
 
 @router.get("/health/test-fallback")
 async def test_fallback():
-    """Test fallback corpus creation by forcing it.
+    """Test production corpus creation by forcing it.
     
     Returns:
         Initialization status and statistics
@@ -178,21 +185,21 @@ async def test_fallback():
         retriever._ensure_initialized()
         retriever._ensure_embedding_model()
         
-        logger.info("Testing fallback corpus creation")
-        success = retriever._create_fallback_corpus(max_docs=10)
+        logger.info("Testing production corpus creation")
+        success = retriever.initialize_production_corpus(max_docs=10)
         final_stats = retriever.get_collection_stats()
         
         return {
             "success": success,
             "vector_db": final_stats,
-            "message": "Fallback corpus created" if success else "Fallback creation failed"
+            "message": "Production corpus created" if success else "Production corpus creation failed"
         }
     except Exception as e:
-        logger.error(f"Failed to create fallback corpus: {e}")
+        logger.error(f"Failed to create production corpus: {e}")
         return {
             "success": False,
             "error": str(e),
-            "message": "Fallback creation failed"
+            "message": "Production corpus creation failed"
         }
 
 
