@@ -35,9 +35,9 @@ def main():
             except Exception as clear_error:
                 logger.warning(f"Failed to clear collection: {clear_error}")
         
-        # Initialize with production corpus (use fallback if corpus file not found)
-        print(f"Initializing production corpus with max_docs={settings.production_max_docs}")
-        success = retriever.initialize_production_corpus(max_docs=settings.production_max_docs)
+        # Always use fallback corpus for reliable startup initialization
+        print(f"Initializing fallback corpus with max_docs={settings.production_max_docs}")
+        success = retriever._create_fallback_corpus(max_docs=settings.production_max_docs)
         final_stats = retriever.get_collection_stats()
         
         print(f"Initialization result: {success}")
