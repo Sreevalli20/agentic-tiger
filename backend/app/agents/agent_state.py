@@ -69,5 +69,5 @@ class AgentState:
             "stopping_reason": self.stopping_reason,
             "final_answer": self.final_answer,
             "started_at": self.started_at.isoformat(),
-            "completed_at": self.completed_at.isoformat() if self.completed_at else None
+            "completed_at": self.completed_at.isoformat() if self.completed_at and isinstance(self.completed_at, datetime) else None
         }

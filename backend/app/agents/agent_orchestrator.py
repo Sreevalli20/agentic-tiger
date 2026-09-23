@@ -133,11 +133,11 @@ class AgentOrchestrator:
         elif len(state.evidence) < 3:
             # Need more evidence: vector search
             return ToolType.VECTOR_SEARCH
-        elif not state.graph_relationships:
-            # Have entities but no relationships: traverse graph
+        elif not state.graph_relationships and state.iteration <= 3:
+            # Have entities but no relationships: try graph traversal (limited attempts)
             return ToolType.GRAPH_TRAVERSE
         else:
-            # Have evidence and graph: evaluate if sufficient
+            # Have evidence and graph (or max graph attempts): evaluate if sufficient
             return ToolType.EVALUATE_EVIDENCE
     
     async def _execute_action(self, state: AgentState, action: ToolType) -> Dict[str, Any]:

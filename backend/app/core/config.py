@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     # Application Configuration
     app_host: str = "0.0.0.0"
     app_port: int = 8000
-    cors_origins: List[str] = ["http://localhost:3000", "http://localhost:5173"]
+    cors_origins: List[str] = ["http://localhost:3000", "http://localhost:5173", "https://graphprobe-ai.vercel.app", "https://graphprobe-ai-frontend.vercel.app"]
     
     # Data Configuration
     data_path: str = "./data"

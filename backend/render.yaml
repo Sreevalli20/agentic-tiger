@@ -1,0 +1,48 @@
+services:
+  - type: web
+    name: graphprobe-backend
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: APP_HOST
+        value: 0.0.0.0
+      - key: APP_PORT
+        value: 8000
+      - key: PORT
+        value: 8000
+      - key: PYTHON_VERSION
+        value: 3.11
+      - key: LLM_PROVIDER
+        value: google
+      - key: LLM_MODEL
+        value: gemini-1.5-flash
+      - key: TG_HOST
+        sync: false
+      - key: TG_PORT
+        value: 14240
+      - key: TG_SECRET
+        sync: false
+      - key: TG_GRAPHNAME
+        value: Transaction_Fraud
+      - key: VECTOR_DB_PATH
+        value: ./data/vector_db
+      - key: EMBEDDING_MODEL
+        value: sentence-transformers/all-MiniLM-L6-v2
+      - key: CHUNK_SIZE
+        value: 500
+      - key: CHUNK_OVERLAP
+        value: 50
+      - key: TOP_K_RETRIEVAL
+        value: 5
+      - key: MAX_AGENT_ITERATIONS
+        value: 10
+      - key: EVIDENCE_SUFFICIENCY_THRESHOLD
+        value: 0.8
+      - key: MAX_TOKEN_BUDGET
+        value: 10000
+      - key: GOOGLE_API_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        value: https://graphprobe-ai.vercel.app,https://graphprobe-ai-frontend.vercel.app
