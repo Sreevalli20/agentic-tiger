@@ -402,8 +402,9 @@ class VectorRetriever:
                 logger.warning(f"Production corpus not found, using full corpus: {corpus_file}, exists: {corpus_file.exists()}")
             
             if not corpus_file.exists():
-                logger.error(f"Corpus file not found at any location. Creating fallback sample data.")
-                # Create fallback sample data
+                logger.error(f"Corpus file not found at any location. Creating fallback sample data immediately.")
+                # Create fallback sample data immediately
+                logger.info("Corpus file not found, using fallback corpus with Chen Ding document")
                 return self._create_fallback_corpus(max_docs)
             
             logger.info(f"Found corpus file at: {corpus_file}")

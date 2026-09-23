@@ -220,15 +220,15 @@ async def health_debug():
     """Debug endpoint to check corpus file availability and vector DB status."""
     try:
         from pathlib import Path
-        retriever = VectorRetriever()
-        retriever._ensure_initialized()
-        retriever._ensure_embedding_model()
+        import os
         
         # Check corpus file locations
         backend_dir = Path(__file__).parent.parent.parent
         project_root = Path(__file__).parent.parent.parent.parent
+        cwd = Path.cwd()
         
         corpus_locations = {
+            "cwd_corpus_production": str(cwd / "corpus_production.jsonl"),
             "backend_corpus_production": str(backend_dir / "corpus_production.jsonl"),
             "backend_hackathon_resources": str(backend_dir / "hackathon-resources" / "corpus" / "corpus_production.jsonl"),
             "project_root_corpus_production": str(project_root / "hackathon-resources" / "corpus" / "corpus_production.jsonl"),
@@ -242,19 +242,34 @@ async def health_debug():
                 "exists": Path(path).exists()
             }
         
+        # List files in current directory
+        cwd_files = []
+        try:
+            cwd_files = [f for f in os.listdir(cwd) if f.endswith('.jsonl')]
+        except:
+            pass
+        
+        # Get vector DB stats
+        retriever = VectorRetriever()
+        retriever._ensure_initialized()
+        retriever._ensure_embedding_model()
         stats = retriever.get_collection_stats()
         
         return {
             "production_mode": settings.production_mode,
             "production_max_docs": settings.production_max_docs,
+            "cwd": str(cwd),
+            "cwd_jsonl_files": cwd_files,
             "vector_db_stats": stats,
             "corpus_file_status": corpus_status,
             "embedding_model_type": retriever.embedding_type
         }
     except Exception as e:
         logger.error(f"Health debug failed: {e}")
+        import traceback
         return {
-            "error": str(e)
+            "error": str(e),
+            "traceback": traceback.format_exc()
         }
 
 
