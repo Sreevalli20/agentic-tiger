@@ -29,8 +29,10 @@ async def health_check():
         # If vector DB is empty in production mode, initialize it
         if settings.production_mode and actual_stats.get('document_count', 0) == 0:
             logger.info("Production mode: Vector DB empty, initializing corpus")
-            retriever.initialize_production_corpus(max_docs=settings.production_max_docs)
+            retriever._ensure_embedding_model()
+            success = retriever.initialize_production_corpus(max_docs=settings.production_max_docs)
             actual_stats = retriever.get_collection_stats()
+            logger.info(f"Production corpus initialization: {success}, chunks: {actual_stats.get('document_count', 0)}")
         
         if actual_stats.get('status') == 'initialized':
             vector_db_stats = actual_stats
