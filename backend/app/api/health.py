@@ -27,18 +27,10 @@ async def health_check():
         retriever._ensure_embedding_model()
         actual_stats = retriever.get_collection_stats()
         
-        # If vector DB is empty and in production mode, initialize it
+        # Always try to initialize in production mode if empty
         if settings.production_mode and actual_stats.get('document_count', 0) == 0:
             logger.info("Production mode: Vector DB empty, initializing with production corpus")
             try:
-                # Force clear any existing data first
-                if retriever.collection:
-                    try:
-                        retriever.collection.delete()
-                        logger.info("Cleared existing vector collection")
-                    except Exception as clear_error:
-                        logger.warning(f"Failed to clear collection: {clear_error}")
-                
                 success = retriever.initialize_production_corpus(max_docs=settings.production_max_docs)
                 actual_stats = retriever.get_collection_stats()
                 logger.info(f"After production initialization (success={success}): {actual_stats}")
