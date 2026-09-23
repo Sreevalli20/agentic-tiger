@@ -19,17 +19,25 @@ async def health_check():
     # Check TigerGraph configuration (don't actually connect to avoid heavy initialization)
     tigergraph_configured = bool(settings.tg_host and settings.tg_secret)
     
-    # Check vector DB stats (non-blocking)
+    # Check vector DB stats and initialize if empty in production mode
     vector_db_stats = {'status': 'lazy', 'message': 'Vector DB available for lazy initialization'}
     try:
         retriever = VectorRetriever()
         retriever._ensure_initialized()
         retriever._ensure_embedding_model()
         actual_stats = retriever.get_collection_stats()
+        
+        # If vector DB is empty and in production mode, initialize it
+        if settings.production_mode and actual_stats.get('document_count', 0) == 0:
+            logger.info("Production mode: Vector DB empty, initializing with fallback corpus")
+            retriever._create_fallback_corpus(max_docs=10)
+            actual_stats = retriever.get_collection_stats()
+            logger.info(f"After fallback initialization: {actual_stats}")
+        
         if actual_stats.get('status') == 'initialized':
             vector_db_stats = actual_stats
     except Exception as e:
-        logger.warning(f"Failed to get vector DB stats: {e}")
+        logger.warning(f"Failed to get/initialize vector DB stats: {e}")
     
     return HealthResponse(
         status="healthy",
