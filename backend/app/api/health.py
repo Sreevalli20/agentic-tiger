@@ -36,7 +36,8 @@ async def health_check():
                 logger.info(f"After fallback initialization: {actual_stats}")
             except Exception as init_error:
                 logger.error(f"Fallback initialization failed: {init_error}")
-                actual_stats = {'status': 'error', 'error': str(init_error)}
+                # Still try to return current stats even if init failed
+                pass
         
         if actual_stats.get('status') == 'initialized':
             vector_db_stats = actual_stats
