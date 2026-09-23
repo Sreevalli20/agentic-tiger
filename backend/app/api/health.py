@@ -11,7 +11,7 @@ router = APIRouter()
 
 
 @router.get("/health", response_model=HealthResponse)
-async def health_check():
+async def health_check(force_init: bool = False):
     """Health check endpoint with lightweight status checks."""
     # Check LLM (prefer GOOGLE_API_KEY, fallback to LLM_API_KEY)
     llm_configured = bool(settings.google_api_key or settings.llm_api_key)
@@ -27,9 +27,9 @@ async def health_check():
         retriever._ensure_embedding_model()
         actual_stats = retriever.get_collection_stats()
         
-        # Always try to initialize in production mode if empty
-        if settings.production_mode and actual_stats.get('document_count', 0) == 0:
-            logger.info("Production mode: Vector DB empty, initializing with production corpus")
+        # Always try to initialize in production mode if empty or force_init is True
+        if force_init or (settings.production_mode and actual_stats.get('document_count', 0) == 0):
+            logger.info(f"Production mode: Vector DB empty or force_init={force_init}, initializing with production corpus")
             try:
                 success = retriever.initialize_production_corpus(max_docs=settings.production_max_docs)
                 actual_stats = retriever.get_collection_stats()
