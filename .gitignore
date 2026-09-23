@@ -87,3 +87,4 @@ build/
 
 .vercel
 backend/data/vector_db/*
+backend/data/vector_db/
