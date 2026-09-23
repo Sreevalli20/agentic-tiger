@@ -19,21 +19,12 @@ async def health_check():
     # Check TigerGraph configuration (don't actually connect to avoid heavy initialization)
     tigergraph_configured = bool(settings.tg_host and settings.tg_secret)
     
-    # Check vector DB stats and initialize if empty in production
+    # Check vector DB stats (lazy initialization - don't init on health check)
     vector_db_stats = {'status': 'lazy', 'message': 'Vector DB available for lazy initialization'}
     try:
         retriever = VectorRetriever()
         retriever._ensure_initialized()
         actual_stats = retriever.get_collection_stats()
-        
-        # If vector DB is empty in production mode, initialize it
-        if settings.production_mode and actual_stats.get('document_count', 0) == 0:
-            logger.info("Production mode: Vector DB empty, initializing corpus")
-            retriever._ensure_embedding_model()
-            success = retriever.initialize_production_corpus(max_docs=settings.production_max_docs)
-            actual_stats = retriever.get_collection_stats()
-            logger.info(f"Production corpus initialization: {success}, chunks: {actual_stats.get('document_count', 0)}")
-        
         if actual_stats.get('status') == 'initialized':
             vector_db_stats = actual_stats
     except Exception as e:
@@ -46,3 +37,40 @@ async def health_check():
         llm_configured=llm_configured,
         vector_db_stats=vector_db_stats
     )
+
+
+@router.post("/health/initialize")
+async def initialize_production():
+    """Initialize production corpus if vector database is empty.
+    
+    Returns:
+        Initialization status and statistics
+    """
+    try:
+        retriever = VectorRetriever()
+        retriever._ensure_initialized()
+        retriever._ensure_embedding_model()
+        stats = retriever.get_collection_stats()
+        
+        if stats.get('document_count', 0) == 0:
+            logger.info("Vector DB empty, initializing production corpus")
+            success = retriever.initialize_production_corpus(max_docs=settings.production_max_docs)
+            final_stats = retriever.get_collection_stats()
+            return {
+                "success": success,
+                "vector_db": final_stats,
+                "message": "Production corpus initialized" if success else "Initialization failed"
+            }
+        else:
+            return {
+                "success": True,
+                "vector_db": stats,
+                "message": f"Vector DB already has {stats.get('document_count', 0)} chunks"
+            }
+    except Exception as e:
+        logger.error(f"Failed to initialize production corpus: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "message": "Initialization failed"
+        }
