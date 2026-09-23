@@ -68,3 +68,6 @@ docs/
 # Hackathon resources (use production corpus only)
 hackathon-resources/corpus/corpus.jsonl
 !hackathon-resources/corpus/corpus_production.jsonl
+
+# Keep production corpus in backend directory
+!corpus_production.jsonl
