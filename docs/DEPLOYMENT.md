@@ -140,11 +140,24 @@ docker-compose down -v  # Removes volumes
 
 ## Cloud Deployment
 
+### Current Deployment Status
+
+**Backend (Render)**
+- URL: https://graphprobe-ai-backend.onrender.com
+- Status: ✅ Deployed and operational
+- Health: Healthy with TigerGraph connectivity
+- Configuration: `backend/render.yaml`
+
+**Frontend (Vercel)**
+- URL: https://frontend-81rdtgomo-siris-projects-3809a50.vercel.app
+- Status: ❌ Deployment exists but returns 404
+- Configuration: `frontend/vercel.json`
+
 ### Backend on Render
 
 #### 1. Prepare for Render
 ```bash
-# Ensure backend/Dockerfile is production-ready
+# Ensure backend/render.yaml is production-ready
 # Ensure .env variables are set in Render dashboard
 ```
 
@@ -153,23 +166,24 @@ docker-compose down -v  # Removes volumes
 2. Create new "Web Service"
 3. Connect GitHub repository
 4. Set build context: `backend`
-5. Set Dockerfile path: `Dockerfile`
-6. Configure environment variables:
+5. Set build command: `pip install -r requirements.txt`
+6. Set start command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+7. Configure environment variables:
    - `LLM_PROVIDER=google`
-   - `LLM_API_KEY=your_key`
+   - `GOOGLE_API_KEY=your_key`
    - `TG_HOST=your_tigergraph_host`
    - `TG_SECRET=your_secret`
-   - `TG_GRAPHNAME=graphrag_hackathon`
-7. Deploy
+   - `TG_GRAPHNAME=Transaction_Fraud`
+8. Deploy
 
 #### 3. Environment Variables
 Set these in Render dashboard:
 - `PORT=8000` (Render sets this automatically)
 - `APP_HOST=0.0.0.0`
-- `CORS_ORIGINS=https://your-frontend-domain.vercel.app`
+- `CORS_ORIGINS=https://frontend-81rdtgomo-siris-projects-3809a50.vercel.app,http://localhost:3000,http://localhost:5173`
 
 #### 4. Health Check
-Render automatically uses the health check from Dockerfile.
+Render automatically uses the health check from the backend API.
 
 ### Frontend on Vercel
 
@@ -190,11 +204,17 @@ npm run build
    - Build command: `npm run build`
    - Output directory: `dist`
 6. Add environment variable:
-   - `VITE_API_BASE_URL=https://your-backend-domain.onrender.com`
+   - `VITE_API_BASE_URL=https://graphprobe-ai-backend.onrender.com`
 7. Deploy
 
 #### 3. Domain Configuration
 Vercel provides a default domain. Configure custom domain if needed.
+
+#### 4. Current Issue
+The frontend deployment currently returns 404. This may be due to:
+- Build configuration issues
+- Vercel routing configuration
+- Deployment settings mismatch
 
 ### TigerGraph Cloud
 
@@ -294,7 +314,7 @@ lsof -ti:8000 | xargs kill
 # Check TigerGraph is running
 # Verify credentials in .env
 # Test connection:
-python -c "from pytigergraph import TigerGraphConnection; conn = TigerGraphConnection(host='your_host', password='your_secret'); print(conn.echo())"
+python -c "from pyTigerGraph import TigerGraphConnection; conn = TigerGraphConnection(host='your_host', password='your_secret'); print(conn.echo())"
 ```
 
 #### Vector DB Issues

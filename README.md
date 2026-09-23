@@ -122,6 +122,8 @@ python -m app.main
 
 Backend runs on `http://localhost:8000`
 
+**Deployed Backend**: https://graphprobe-ai-backend.onrender.com
+
 ### Start Frontend
 ```bash
 cd frontend
@@ -129,6 +131,8 @@ npm run dev
 ```
 
 Frontend runs on `http://localhost:3000`
+
+**Deployed Frontend**: https://frontend-81rdtgomo-siris-projects-3809a50.vercel.app (currently inaccessible)
 
 ### Ingest Data
 ```bash
@@ -275,9 +279,34 @@ pytest tests/test_retrieval.py
 
 ## Deployment
 
-### Production Deployment
+### Current Deployment Status
 
-The application is configured for production deployment using:
+**Backend (Render)**
+- URL: https://graphprobe-ai-backend.onrender.com
+- Status: Deployed and operational
+- Health: Healthy (TigerGraph connected, vector DB available, LLM configured)
+- Configuration: `backend/render.yaml`
+- Environment variables: GOOGLE_API_KEY, TG_HOST, TG_SECRET, TG_GRAPHNAME
+
+**Frontend (Vercel)**
+- URL: https://frontend-81rdtgomo-siris-projects-3809a50.vercel.app
+- Status: Deployment exists but currently returns 404
+- Configuration: `frontend/vercel.json`
+- API Configuration: Auto-configured to use Render backend URL
+
+### Verified Endpoints
+
+**Backend:**
+- ✅ /api/health - Returns healthy status with TigerGraph and vector DB connectivity
+- ✅ /api/config - Returns current LLM, TigerGraph, and system configuration
+- ✅ /api/metrics - Returns benchmark and indexing status (partial corpus indexed)
+
+**Frontend:**
+- ❌ Deployment URL returns 404 - Frontend not accessible at current URL
+- Frontend code configured to use Render backend API when deployed
+- Local development works correctly
+
+### Production Deployment Configuration
 
 **Backend (Render)**
 - Configuration: `backend/render.yaml`
@@ -340,13 +369,18 @@ Docker configuration is available for local development and alternative deployme
 - ⚠️ Requires TG_HOST, TG_SECRET for TigerGraph connectivity
 - ⚠️ Corpus loading is resource-intensive for full dataset
 - ⚠️ TigerGraph schema adapts to existing Transaction_Fraud structure
-- ⚠️ Partial corpus indexing (50 chunks for demo) due to time constraints
+- ⚠️ Partial corpus indexing (0 chunks indexed) due to deployment constraints
+- ⚠️ No benchmark runs completed in deployed environment
 - ⚠️ TigerGraph connection requires external instance (not included in deployment)
+- ⚠️ Frontend deployment currently inaccessible (404 error)
 
 **Deployment Status**:
-- 🚀 Backend configured for Render deployment
-- 🚀 Frontend configured for Vercel deployment
-- 🚀 CORS configured for production URLs
+- ✅ Backend deployed to Render (https://graphprobe-ai-backend.onrender.com)
+- ✅ Backend health endpoint operational with TigerGraph connectivity
+- ✅ Backend config endpoint returns valid configuration
+- ✅ Backend metrics endpoint shows system status
+- ❌ Frontend deployed to Vercel but returns 404 (deployment issue)
+- ⚠️ Frontend code configured for production API URLs
 - ⚠️ Requires manual environment variable configuration on deployment platforms
 
 **Future Work**:
