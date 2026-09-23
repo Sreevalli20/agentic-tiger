@@ -19,25 +19,17 @@ async def health_check():
     # Check TigerGraph configuration (don't actually connect to avoid heavy initialization)
     tigergraph_configured = bool(settings.tg_host and settings.tg_secret)
     
-    # Check vector DB stats and initialize if empty in production mode
+    # Check vector DB stats (non-blocking)
     vector_db_stats = {'status': 'lazy', 'message': 'Vector DB available for lazy initialization'}
     try:
         retriever = VectorRetriever()
         retriever._ensure_initialized()
         retriever._ensure_embedding_model()
         actual_stats = retriever.get_collection_stats()
-        
-        # If vector DB is empty and in production mode, initialize it
-        if settings.production_mode and actual_stats.get('document_count', 0) == 0:
-            logger.info("Production mode: Vector DB empty, initializing on health check")
-            retriever.initialize_production_corpus(max_docs=settings.production_max_docs)
-            actual_stats = retriever.get_collection_stats()
-            logger.info(f"After initialization: {actual_stats}")
-        
         if actual_stats.get('status') == 'initialized':
             vector_db_stats = actual_stats
     except Exception as e:
-        logger.warning(f"Failed to get/initialize vector DB stats: {e}")
+        logger.warning(f"Failed to get vector DB stats: {e}")
     
     return HealthResponse(
         status="healthy",
@@ -78,6 +70,36 @@ async def initialize_production():
             }
     except Exception as e:
         logger.error(f"Failed to initialize production corpus: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "message": "Initialization failed"
+        }
+
+
+@router.get("/health/force-init")
+async def force_initialize():
+    """Force initialize production corpus regardless of current state.
+    
+    Returns:
+        Initialization status and statistics
+    """
+    try:
+        retriever = VectorRetriever()
+        retriever._ensure_initialized()
+        retriever._ensure_embedding_model()
+        
+        logger.info("Force initializing production corpus")
+        success = retriever.initialize_production_corpus(max_docs=settings.production_max_docs)
+        final_stats = retriever.get_collection_stats()
+        
+        return {
+            "success": success,
+            "vector_db": final_stats,
+            "message": "Production corpus force initialized" if success else "Initialization failed"
+        }
+    except Exception as e:
+        logger.error(f"Failed to force initialize production corpus: {e}")
         return {
             "success": False,
             "error": str(e),
