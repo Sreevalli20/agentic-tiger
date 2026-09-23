@@ -53,8 +53,10 @@ async def health_check(force_init: bool = False):
                 logger.error(f"Force initialization failed: {init_error}")
                 vector_db_stats = actual_stats
         else:
-            # Return actual stats if we have documents
-            if actual_stats.get('document_count', 0) > 0:
+            # Always return actual stats in production mode
+            if settings.production_mode:
+                vector_db_stats = actual_stats
+            elif actual_stats.get('document_count', 0) > 0:
                 vector_db_stats = actual_stats
             elif actual_stats.get('status') == 'initialized':
                 vector_db_stats = actual_stats
