@@ -19,6 +19,16 @@ export default defineConfig(({ mode }) => {
       'import.meta.env.VITE_API_BASE_URL': JSON.stringify(
         env.VITE_API_BASE_URL || 'https://graphprobe-ai-backend.onrender.com'
       )
+    },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+            'ui-vendor': ['lucide-react', 'recharts']
+          }
+        }
+      }
     }
   }
 })
