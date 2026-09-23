@@ -31,8 +31,8 @@ async def health_check(force_init: bool = False):
         if force_init or (settings.production_mode and actual_stats.get('document_count', 0) == 0):
             logger.info(f"Production mode: Vector DB empty or force_init={force_init}, initializing with production corpus")
             try:
-                # Clear existing data first
-                if retriever.collection:
+                # Only clear if force_init is True
+                if force_init and retriever.collection:
                     try:
                         retriever.collection.delete()
                         logger.info("Cleared existing vector collection")
