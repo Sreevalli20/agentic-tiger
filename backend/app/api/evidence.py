@@ -29,7 +29,16 @@ async def get_evidence_graph(run_id: str):
         investigation = storage_manager.get_investigation(run_id)
         if not investigation:
             raise HTTPException(status_code=404, detail="Investigation not found")
-        return investigation.get('graph_context', {})
+        
+        graph_context = investigation.get('graph_context', {})
+        # Ensure graph context has required fields for frontend
+        if not graph_context:
+            graph_context = {
+                'entities': [],
+                'relationships': [],
+                'nodes_visited': 0
+            }
+        return graph_context
     except HTTPException:
         raise
     except Exception as e:

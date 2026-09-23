@@ -1,8 +1,5 @@
 /** API client for backend communication. */
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 
-  (typeof window !== 'undefined' && window.location.hostname === 'localhost' 
-    ? 'http://localhost:8000' 
-    : 'https://graphprobe-ai-backend.onrender.com');
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://graphprobe-ai-backend.onrender.com';
 
 export const api = {
   /**

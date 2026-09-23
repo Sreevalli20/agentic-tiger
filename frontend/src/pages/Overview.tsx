@@ -100,38 +100,39 @@ export default function Overview() {
         {loading ? (
           <div className="text-sm text-gray-400">Loading system status...</div>
         ) : healthStatus ? (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="flex items-center space-x-3">
-              <div className={`h-3 w-3 rounded-full ${healthStatus.status === 'healthy' ? 'bg-green-500' : 'bg-red-500'}`}></div>
-              <span className="text-sm text-gray-400">Backend API</span>
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="flex items-center space-x-3">
+                <div className={`h-3 w-3 rounded-full ${healthStatus.status === 'healthy' ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                <span className="text-sm text-gray-400">Backend API</span>
+              </div>
+              <div className="flex items-center space-x-3">
+                <div className={`h-3 w-3 rounded-full ${healthStatus.tigergraph_connected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                <span className="text-sm text-gray-400">TigerGraph Connection</span>
+              </div>
+              <div className="flex items-center space-x-3">
+                <div className={`h-3 w-3 rounded-full ${healthStatus.vector_db_connected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                <span className="text-sm text-gray-400">Vector Database</span>
+              </div>
             </div>
-            <div className="flex items-center space-x-3">
-              <div className={`h-3 w-3 rounded-full ${healthStatus.tigergraph_connected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-              <span className="text-sm text-gray-400">TigerGraph Connection</span>
-            </div>
-            <div className="flex items-center space-x-3">
-              <div className={`h-3 w-3 rounded-full ${healthStatus.vector_db_connected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-              <span className="text-sm text-gray-400">Vector Database</span>
-            </div>
+            {healthStatus.vector_db_stats && (
+              <div className="bg-navy-900/50 rounded-lg p-4 border border-navy-700">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-500">Documents:</span>
+                    <span className="text-gray-300 ml-2">{healthStatus.vector_db_stats.document_count || 0}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Status:</span>
+                    <span className="text-gray-300 ml-2">{healthStatus.vector_db_stats.status || 'unknown'}</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="text-sm text-red-400">Failed to load system status</div>
         )}
-      </div>
-
-      {/* Research Question */}
-      <div className="glass-panel p-6">
-        <h3 className="text-lg font-semibold text-gray-100 mb-4">Research Question</h3>
-        <div className="bg-navy-900/50 rounded-lg p-4 border border-navy-700">
-          <p className="text-gray-300 italic">
-            "When does Agentic GraphRAG actually provide enough additional reasoning value 
-            to justify its additional retrieval steps, latency, and token cost?"
-          </p>
-        </div>
-        <p className="text-sm text-gray-400 mt-4">
-          This system demonstrates that simple questions can be handled by simpler retrieval 
-          while complex multi-hop questions can trigger deeper agentic investigation.
-        </p>
       </div>
 
       {/* Research Question */}

@@ -34,7 +34,8 @@ async def investigate(request: InvestigateRequest):
         
         return {
             "result": result,
-            "investigation_id": investigation_id
+            "investigation_id": investigation_id,
+            "run_id": investigation_id  # Add run_id for consistency with trace/evidence endpoints
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

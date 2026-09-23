@@ -28,6 +28,18 @@ export default function Metrics() {
     } catch (error) {
       console.error('Failed to load benchmark runs:', error)
       setError(error instanceof Error ? error.message : 'Failed to load benchmark data')
+      // Also try to get general metrics if benchmark results fail
+      try {
+        const metricsData = await api.getMetrics() as any
+        setMetrics({
+          rag: { accuracy: 0, avg_latency: 0, avg_tokens: 0, question_types: {} },
+          graphrag: { accuracy: 0, avg_latency: 0, avg_tokens: 0, question_types: {} },
+          agentic: { accuracy: 0, avg_latency: 0, avg_tokens: 0, question_types: {} },
+          ...metricsData
+        })
+      } catch (metricsError) {
+        console.error('Failed to load general metrics:', metricsError)
+      }
     } finally {
       setLoading(false)
     }

@@ -19,7 +19,12 @@ export default function AgentTrace() {
     try {
       setLoading(true)
       const data = await api.getTrace(id)
-      setTrace(data)
+      // Handle the backend response structure
+      if (data && typeof data === 'object') {
+        setTrace(data)
+      } else {
+        setError('Invalid trace data received from backend')
+      }
     } catch (err) {
       console.error('Failed to load trace:', err)
       setError(err instanceof Error ? err.message : 'Failed to load trace data')

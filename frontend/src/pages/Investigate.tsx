@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Send, Loader2 } from 'lucide-react'
+import { Send, Loader2, Activity, GitBranch } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { api } from '../services/api'
 
 type PipelineType = 'rag' | 'graphrag' | 'agentic'
@@ -154,18 +155,80 @@ export default function Investigate() {
             </div>
             
             <div>
+              <label className="block text-sm font-medium text-gray-400 mb-2">Investigation ID</label>
+              <div className="bg-navy-900/50 rounded-lg p-4 border border-navy-700">
+                <p className="text-sm text-cyan-400 font-mono mb-2">{result.investigation_id}</p>
+                <div className="flex space-x-3">
+                  <Link 
+                    to={`/trace/${result.investigation_id}`}
+                    className="flex items-center space-x-1 text-xs text-cyan-400 hover:text-cyan-300"
+                  >
+                    <Activity className="h-3 w-3" />
+                    <span>View Trace</span>
+                  </Link>
+                  <Link 
+                    to={`/evidence/${result.investigation_id}`}
+                    className="flex items-center space-x-1 text-xs text-cyan-400 hover:text-cyan-300"
+                  >
+                    <GitBranch className="h-3 w-3" />
+                    <span>View Evidence</span>
+                  </Link>
+                </div>
+              </div>
+            </div>
+            
+            <div>
               <label className="block text-sm font-medium text-gray-400 mb-2">Evidence ({result.result?.evidence?.length || 0} items)</label>
               <div className="space-y-2 max-h-64 overflow-y-auto">
                 {result.result?.evidence?.map((evidence: any, index: number) => (
                   <div key={index} className="bg-navy-900/50 rounded-lg p-3 border border-navy-700">
                     <p className="text-sm text-gray-300">{evidence.content}</p>
                     <p className="text-xs text-gray-500 mt-1">
-                      Source: {evidence.metadata.source} ({evidence.metadata.source_type})
+                      Source: {evidence.metadata?.source} ({evidence.metadata?.source_type})
                     </p>
                   </div>
                 ))}
               </div>
             </div>
+            
+            {result.result?.citations && result.result.citations.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-2">Citations ({result.result.citations.length})</label>
+                <div className="space-y-2 max-h-32 overflow-y-auto">
+                  {result.result.citations.map((citation: any, index: number) => (
+                    <div key={index} className="bg-navy-900/50 rounded-lg p-2 border border-navy-700">
+                      <p className="text-xs text-gray-400">{citation.text || JSON.stringify(citation)}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {result.result?.metrics && (
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-2">Metrics</label>
+                <div className="bg-navy-900/50 rounded-lg p-4 border border-navy-700">
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <span className="text-gray-500">Total Latency:</span>
+                      <span className="text-gray-300 ml-2">{result.result.metrics.total_latency_ms?.toFixed(0)}ms</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Total Tokens:</span>
+                      <span className="text-gray-300 ml-2">{result.result.metrics.total_tokens}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">LLM Calls:</span>
+                      <span className="text-gray-300 ml-2">{result.result.metrics.llm_calls}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Retrieval Calls:</span>
+                      <span className="text-gray-300 ml-2">{result.result.metrics.retrieval_calls}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -19,7 +19,12 @@ export default function EvidenceGraph() {
     try {
       setLoading(true)
       const graphData = await api.getEvidenceGraph(id)
-      setGraphContext(graphData)
+      // Handle the backend response structure
+      if (graphData && typeof graphData === 'object') {
+        setGraphContext(graphData)
+      } else {
+        setError('Invalid graph data received from backend')
+      }
     } catch (err) {
       console.error('Failed to load graph context:', err)
       setError(err instanceof Error ? err.message : 'Failed to load graph data')

@@ -15,7 +15,12 @@ export default function Compare() {
     setError(null)
     try {
       const data = await api.compare(question, ['rag', 'graphrag', 'agentic'])
-      setResults(data)
+      // Handle the backend response structure
+      if (data && typeof data === 'object') {
+        setResults(data)
+      } else {
+        setError('Invalid comparison data received from backend')
+      }
     } catch (error) {
       console.error('Comparison failed:', error)
       setError(error instanceof Error ? error.message : 'Comparison failed')
@@ -98,7 +103,7 @@ export default function Compare() {
                     <label className="block text-xs font-medium text-gray-400 mb-1">Latency</label>
                     <div className="bg-navy-900/50 rounded p-2 border border-navy-700">
                       <p className="text-gray-300 text-sm">
-                        {result.metrics.total_latency_ms.toFixed(0)}ms
+                        {result.metrics?.total_latency_ms?.toFixed(0) || 'N/A'}ms
                       </p>
                     </div>
                   </div>
@@ -106,7 +111,7 @@ export default function Compare() {
                     <label className="block text-xs font-medium text-gray-400 mb-1">Tokens</label>
                     <div className="bg-navy-900/50 rounded p-2 border border-navy-700">
                       <p className="text-gray-300 text-sm">
-                        {result.metrics.total_tokens}
+                        {result.metrics?.total_tokens || 'N/A'}
                       </p>
                     </div>
                   </div>
@@ -114,7 +119,7 @@ export default function Compare() {
                     <label className="block text-xs font-medium text-gray-400 mb-1">Evidence</label>
                     <div className="bg-navy-900/50 rounded p-2 border border-navy-700">
                       <p className="text-gray-300 text-sm">
-                        {result.evidence.length}
+                        {result.evidence?.length || 0}
                       </p>
                     </div>
                   </div>
@@ -123,12 +128,12 @@ export default function Compare() {
                 <div>
                   <label className="block text-sm font-medium text-gray-400 mb-2">Evidence Items</label>
                   <div className="space-y-1 max-h-32 overflow-y-auto">
-                    {result.evidence.slice(0, 3).map((evidence: any, index: number) => (
+                    {result.evidence?.slice(0, 3).map((evidence: any, index: number) => (
                       <div key={index} className="bg-navy-900/50 rounded p-2 border border-navy-700">
                         <p className="text-xs text-gray-400 truncate">{evidence.content}</p>
                       </div>
                     ))}
-                    {result.evidence.length > 3 && (
+                    {result.evidence?.length > 3 && (
                       <p className="text-xs text-gray-500">+{result.evidence.length - 3} more</p>
                     )}
                   </div>
