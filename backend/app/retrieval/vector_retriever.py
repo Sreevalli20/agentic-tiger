@@ -23,7 +23,7 @@ class VectorRetriever:
         """
         global _shared_retriever
         if _shared_retriever is not None:
-            # Use shared instance
+            # Use shared instance - reference the same objects
             self.documents = _shared_retriever.documents
             self.metadatas = _shared_retriever.metadatas
             self.ids = _shared_retriever.ids
@@ -31,7 +31,7 @@ class VectorRetriever:
             self.tfidf_matrix = _shared_retriever.tfidf_matrix
             self._initialized = _shared_retriever._initialized
             self.corpus_path = corpus_path
-            logger.info("Using shared TF-IDF retriever instance")
+            logger.info(f"Using shared TF-IDF retriever instance with {len(self.documents)} chunks")
         else:
             # Create new instance
             self.documents = []
@@ -126,9 +126,11 @@ class VectorRetriever:
             )
             self.tfidf_matrix = self.tfidf_vectorizer.fit_transform(self.documents)
             
-            # Update shared instance
+            # Update shared instance reference
             global _shared_retriever
-            _shared_retriever = self
+            if _shared_retriever is not self:
+                _shared_retriever = self
+                logger.info("Updated shared TF-IDF retriever instance with new data")
             
             logger.info(f"Successfully indexed {len(self.documents)} chunks from {doc_count} documents using TF-IDF")
             return True
@@ -187,15 +189,6 @@ class VectorRetriever:
             return []
         
         try:
-            # Check if collection is empty and initialize with production corpus if needed
-            stats = self.get_collection_stats()
-            if stats.get('document_count', 0) == 0:
-                logger.info("TF-IDF index empty during search, initializing with production corpus")
-                from app.core.config import settings
-                success = self.initialize_production_corpus(max_docs=settings.production_max_docs)
-                stats = self.get_collection_stats()
-                logger.info(f"After production initialization (success={success}): {stats}")
-            
             # Transform query using the same TF-IDF vectorizer
             query_tfidf = self.tfidf_vectorizer.transform([query])
             
@@ -262,6 +255,11 @@ class VectorRetriever:
             # (in-memory DB needs data on every startup)
             if stats.get('document_count', 0) > 0:
                 logger.info(f"TF-IDF index has {stats['document_count']} chunks - using existing index (no reinitialization needed)")
+                # Ensure shared instance is pointing to this instance
+                global _shared_retriever
+                if _shared_retriever is not self:
+                    _shared_retriever = self
+                    logger.info("Updated shared TF-IDF retriever instance reference")
                 return True
             
             logger.info("Initializing production corpus")
