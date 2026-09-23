@@ -24,20 +24,13 @@ def main():
         stats = retriever.get_collection_stats()
         print(f"Current vector DB stats: {stats}")
         
-        # Clear existing data if we have documents
-        if retriever.collection and stats.get('document_count', 0) > 0:
-            try:
-                # Get all IDs and delete them
-                all_ids = retriever.collection.get()['ids']
-                if all_ids:
-                    retriever.collection.delete(ids=all_ids)
-                    logger.info(f"Cleared existing vector collection ({len(all_ids)} documents)")
-            except Exception as clear_error:
-                logger.warning(f"Failed to clear collection: {clear_error}")
-        
-        # Always use fallback corpus for reliable startup initialization
-        print(f"Initializing fallback corpus with max_docs={settings.production_max_docs}")
-        success = retriever._create_fallback_corpus(max_docs=settings.production_max_docs)
+        # Only initialize if collection is empty
+        if stats.get('document_count', 0) == 0:
+            print(f"Vector DB is empty - initializing with production corpus")
+            success = retriever.initialize_production_corpus(max_docs=settings.production_max_docs)
+        else:
+            print(f"Vector DB already has {stats.get('document_count', 0)} chunks - skipping initialization")
+            success = True
         final_stats = retriever.get_collection_stats()
         
         print(f"Initialization result: {success}")
