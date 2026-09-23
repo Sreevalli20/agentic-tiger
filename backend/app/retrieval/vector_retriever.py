@@ -390,12 +390,22 @@ class VectorRetriever:
             if success:
                 final_stats = self.get_collection_stats()
                 logger.info(f"Production corpus initialized with {final_stats.get('document_count', 0)} chunks")
+            else:
+                # If loading failed, create fallback
+                logger.warning("Failed to load corpus file, creating fallback sample data")
+                return self._create_fallback_corpus(max_docs)
             
             return success
             
         except Exception as e:
             logger.error(f"Failed to initialize production corpus: {e}")
-            return False
+            # Try fallback as last resort
+            try:
+                logger.info("Attempting fallback corpus creation after error")
+                return self._create_fallback_corpus(max_docs)
+            except Exception as fallback_error:
+                logger.error(f"Fallback corpus creation also failed: {fallback_error}")
+                return False
     
     def _create_fallback_corpus(self, max_docs: int = 10) -> bool:
         """Create fallback sample corpus when no corpus file is available.
