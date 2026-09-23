@@ -25,13 +25,20 @@ async def lifespan(app: FastAPI):
             retriever._ensure_embedding_model()
             stats = retriever.get_collection_stats()
             
-            if stats.get('document_count', 0) == 0:
-                logger.info("Vector DB empty, initializing with production corpus")
-                success = retriever.initialize_production_corpus(max_docs=settings.production_max_docs)
-                final_stats = retriever.get_collection_stats()
-                logger.info(f"Startup initialization complete: {final_stats.get('document_count', 0)} chunks")
-            else:
-                logger.info(f"Vector DB already has {stats.get('document_count', 0)} chunks")
+            # Clear existing data if we have documents
+            if retriever.collection and stats.get('document_count', 0) > 0:
+                try:
+                    all_ids = retriever.collection.get()['ids']
+                    if all_ids:
+                        retriever.collection.delete(ids=all_ids)
+                        logger.info(f"Cleared existing vector collection ({len(all_ids)} documents)")
+                except Exception as clear_error:
+                    logger.warning(f"Failed to clear collection: {clear_error}")
+            
+            # Initialize with production corpus
+            success = retriever.initialize_production_corpus(max_docs=settings.production_max_docs)
+            final_stats = retriever.get_collection_stats()
+            logger.info(f"Startup initialization complete: {final_stats.get('document_count', 0)} chunks")
         except Exception as e:
             logger.error(f"Startup initialization failed: {e}")
     
