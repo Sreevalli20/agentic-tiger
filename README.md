@@ -60,11 +60,12 @@ See [docs/architecture.md](docs/architecture.md) for detailed architecture docum
 ## Technology Stack
 
 ### Backend
-- **Python 3.14.6**: Core runtime
+- **Python 3.11**: Core runtime
 - **FastAPI**: Web framework
 - **TigerGraph (pytigergraph)**: Graph database (Transaction_Fraud graph)
 - **ChromaDB**: Vector database
 - **Google AI (google-genai)**: LLM integration
+- **Model**: gemini-1.5-flash (used across all three pipelines)
 - **Sentence Transformers**: Embeddings
 
 ### Frontend
@@ -82,7 +83,7 @@ See [docs/architecture.md](docs/architecture.md) for detailed architecture docum
 ## Setup
 
 ### Prerequisites
-- Python 3.14.6 (or 3.12 if compatibility issues)
+- Python 3.11
 - Node.js 18+
 - TigerGraph instance with Transaction_Fraud graph
 - Google AI API key (GOOGLE_API_KEY)
@@ -272,24 +273,57 @@ pytest
 pytest tests/test_retrieval.py
 ```
 
+## Deployment
+
+### Production Deployment
+
+The application is configured for production deployment using:
+
+**Backend (Render)**
+- Configuration: `backend/render.yaml`
+- Environment variables: GOOGLE_API_KEY, TG_HOST, TG_SECRET, TG_GRAPHNAME
+- Note: Requires manual configuration of environment variables in Render dashboard
+
+**Frontend (Vercel)**
+- Configuration: `frontend/vercel.json`
+- Environment variables: VITE_API_BASE_URL (auto-configured)
+- Note: Backend URL must be deployed first and updated in Vercel config
+
+### Deployment Steps
+
+1. **Deploy Backend to Render**
+   ```bash
+   # Install Render CLI or use web dashboard
+   # Connect repository
+   # Configure environment variables:
+   # - GOOGLE_API_KEY: Your Google AI API key
+   # - TG_HOST: Your TigerGraph host
+   # - TG_SECRET: Your TigerGraph secret
+   # - TG_GRAPHNAME: Transaction_Fraud
+   ```
+
+2. **Deploy Frontend to Vercel**
+   ```bash
+   # Install Vercel CLI or use web dashboard
+   # Connect repository
+   # Update VITE_API_BASE_URL to match Render backend URL
+   ```
+
+3. **Verify Deployment**
+   - Test backend health endpoint
+   - Test frontend loads correctly
+   - Verify API connectivity
+
 ## Docker
 
-Docker configuration is planned but not yet implemented for Round 1. The application is designed to run natively for development and testing.
-
-## Limitations
-
-- Requires TigerGraph instance with Transaction_Fraud graph
-- Requires Google AI API key for LLM functionality
-- Corpus loading can take several minutes for full dataset (2,951 documents)
-- TigerGraph schema adapts to existing Transaction_Fraud structure
-- Hidden evaluation questions remain private and are not exposed in the UI
+Docker configuration is available for local development and alternative deployment scenarios.
 
 ## Implementation Status
 
 **Completed Components**:
 - ✅ Real dataset integration (2,951 Olympic documents from hackathon-resources)
 - ✅ TigerGraph integration with Transaction_Fraud graph
-- ✅ Google AI (google-genai) LLM integration
+- ✅ Google AI (google-genai) LLM integration using gemini-1.5-flash
 - ✅ RAG pipeline with ChromaDB vector database
 - ✅ GraphRAG pipeline with TigerGraph traversal
 - ✅ Agentic GraphRAG with dynamic tool selection
@@ -299,12 +333,21 @@ Docker configuration is planned but not yet implemented for Round 1. The applica
 - ✅ Benchmark system with public evaluation questions
 - ✅ Health check with actual connectivity testing
 - ✅ Environment configuration for Transaction_Fraud
+- ✅ Production deployment configuration (Render + Vercel)
 
 **Current Limitations**:
 - ⚠️ Requires GOOGLE_API_KEY environment variable for LLM functionality
 - ⚠️ Requires TG_HOST, TG_SECRET for TigerGraph connectivity
 - ⚠️ Corpus loading is resource-intensive for full dataset
 - ⚠️ TigerGraph schema adapts to existing Transaction_Fraud structure
+- ⚠️ Partial corpus indexing (50 chunks for demo) due to time constraints
+- ⚠️ TigerGraph connection requires external instance (not included in deployment)
+
+**Deployment Status**:
+- 🚀 Backend configured for Render deployment
+- 🚀 Frontend configured for Vercel deployment
+- 🚀 CORS configured for production URLs
+- ⚠️ Requires manual environment variable configuration on deployment platforms
 
 **Future Work**:
 - Temporal reasoning for evolving facts (Round 2)
@@ -313,6 +356,15 @@ Docker configuration is planned but not yet implemented for Round 1. The applica
 - Learned decision policy for tool selection
 - User feedback integration
 - Cost optimization with dynamic budgeting
+- Full corpus indexing and benchmark execution
+
+## Security
+
+- No API keys or secrets are committed to the repository
+- Environment variables are managed through `.env` files (gitignored)
+- TigerGraph credentials and Google API keys must be configured separately
+- Hidden evaluation data (eval_hidden.jsonl) is not exposed in the application
+- `.gitignore` configured to prevent accidental secret commits
 
 ## License
 
