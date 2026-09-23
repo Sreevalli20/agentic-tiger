@@ -86,3 +86,4 @@ htmlcov/
 build/
 
 .vercel
+backend/data/vector_db/*
