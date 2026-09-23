@@ -9,8 +9,13 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-# Singleton instance for shared TF-IDF index
-_shared_retriever = None
+# Module-level shared data - all instances share this
+_documents = []
+_metadatas = []
+_ids = []
+_tfidf_vectorizer = None
+_tfidf_matrix = None
+_initialized = False
 
 class VectorRetriever:
     """Lightweight retrieval service using TF-IDF with real corpus data."""
@@ -21,28 +26,14 @@ class VectorRetriever:
         Args:
             corpus_path: Path to corpus.jsonl file
         """
-        global _shared_retriever
-        if _shared_retriever is not None:
-            # Use shared instance - reference the same objects
-            self.documents = _shared_retriever.documents
-            self.metadatas = _shared_retriever.metadatas
-            self.ids = _shared_retriever.ids
-            self.tfidf_vectorizer = _shared_retriever.tfidf_vectorizer
-            self.tfidf_matrix = _shared_retriever.tfidf_matrix
-            self._initialized = _shared_retriever._initialized
-            self.corpus_path = corpus_path
-            logger.info(f"Using shared TF-IDF retriever instance with {len(self.documents)} chunks")
-        else:
-            # Create new instance
-            self.documents = []
-            self.metadatas = []
-            self.ids = []
-            self.tfidf_vectorizer = None
-            self.tfidf_matrix = None
-            self._initialized = False
-            self.corpus_path = corpus_path
-            _shared_retriever = self
-            logger.info("Created new TF-IDF retriever instance")
+        # All instances reference the same module-level data (mutable references)
+        self.documents = _documents
+        self.metadatas = _metadatas
+        self.ids = _ids
+        self.tfidf_vectorizer = _tfidf_vectorizer
+        self.tfidf_matrix = _tfidf_matrix
+        self._initialized = _initialized
+        self.corpus_path = corpus_path
     
     def _ensure_initialized(self):
         """Ensure TF-IDF index is initialized."""
@@ -126,11 +117,18 @@ class VectorRetriever:
             )
             self.tfidf_matrix = self.tfidf_vectorizer.fit_transform(self.documents)
             
-            # Update shared instance reference
-            global _shared_retriever
-            if _shared_retriever is not self:
-                _shared_retriever = self
-                logger.info("Updated shared TF-IDF retriever instance with new data")
+            # Update module-level shared data
+            global _documents, _metadatas, _ids
+            global _tfidf_vectorizer, _tfidf_matrix, _initialized
+            _documents.clear()
+            _documents.extend(self.documents)
+            _metadatas.clear()
+            _metadatas.extend(self.metadatas)
+            _ids.clear()
+            _ids.extend(self.ids)
+            _tfidf_vectorizer = self.tfidf_vectorizer
+            _tfidf_matrix = self.tfidf_matrix
+            _initialized = True
             
             logger.info(f"Successfully indexed {len(self.documents)} chunks from {doc_count} documents using TF-IDF")
             return True
@@ -249,20 +247,24 @@ class VectorRetriever:
         """
         try:
             self._ensure_initialized()
-            stats = self.get_collection_stats()
             
-            # Always initialize in production mode to ensure data is loaded
-            # (in-memory DB needs data on every startup)
-            if stats.get('document_count', 0) > 0:
-                logger.info(f"TF-IDF index has {stats['document_count']} chunks - using existing index (no reinitialization needed)")
-                # Ensure shared instance is pointing to this instance
-                global _shared_retriever
-                if _shared_retriever is not self:
-                    _shared_retriever = self
-                    logger.info("Updated shared TF-IDF retriever instance reference")
+            # Check if already loaded in shared data
+            global _initialized
+            if _initialized and len(_documents) > 0:
+                logger.info(f"TF-IDF index already has {len(_documents)} chunks - using existing index")
                 return True
             
             logger.info("Initializing production corpus")
+            
+            # Clear existing data for fresh load
+            global _documents, _metadatas, _ids
+            global _tfidf_vectorizer, _tfidf_matrix
+            _documents.clear()
+            _metadatas.clear()
+            _ids.clear()
+            _tfidf_vectorizer = None
+            _tfidf_matrix = None
+            _initialized = False
             
             # Determine corpus path - try multiple locations in order
             backend_dir = Path(__file__).parent.parent.parent
