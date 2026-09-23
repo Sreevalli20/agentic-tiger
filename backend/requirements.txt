@@ -15,13 +15,11 @@ openai>=1.51.0
 google-genai>=1.0.0
 anthropic>=0.39.0
 
-# Vector (CPU-only)
-chromadb>=0.5.0
-sentence-transformers>=2.2.0
+# Vector (lightweight TF-IDF)
+scikit-learn>=1.3.0
 
 # Data processing
 numpy>=1.24.0
-pandas>=2.0.0
 
 # Evaluation
 rapidfuzz>=3.10.0

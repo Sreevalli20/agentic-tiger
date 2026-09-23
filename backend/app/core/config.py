@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     # Application Configuration
     app_host: str = "0.0.0.0"
     app_port: int = 8000
-    cors_origins: List[str] = ["http://localhost:3000", "http://localhost:5173", "https://frontend-k2m1gbrva-siris-projects-3809a50c.vercel.app"]
+    cors_origins: List[str] = ["http://localhost:3000", "http://localhost:5173", "https://frontend-jdmw8kj8a-siris-projects-3809a50.vercel.app"]
     
     # Data Configuration
     data_path: str = "./data"
