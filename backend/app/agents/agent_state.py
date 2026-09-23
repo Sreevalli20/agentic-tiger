@@ -1,7 +1,7 @@
 """Agent state management for Agentic GraphRAG."""
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from app.models.schemas import ToolType, Evidence, GraphContext
 
 
@@ -45,7 +45,7 @@ class AgentState:
     citations: List[Dict[str, Any]] = field(default_factory=list)
     
     # Timestamps
-    started_at: datetime = field(default_factory=datetime.utcnow)
+    started_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     completed_at: Optional[datetime] = None
     
     def to_dict(self) -> Dict[str, Any]:
@@ -68,6 +68,6 @@ class AgentState:
             "contradictions": self.contradictions,
             "stopping_reason": self.stopping_reason,
             "final_answer": self.final_answer,
-            "started_at": self.started_at.isoformat(),
+            "started_at": self.started_at.isoformat() if self.started_at else None,
             "completed_at": self.completed_at.isoformat() if self.completed_at and isinstance(self.completed_at, datetime) else None
         }

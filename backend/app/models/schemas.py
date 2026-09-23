@@ -1,7 +1,7 @@
 """Pydantic models for API requests and responses."""
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 from typing import List, Optional, Dict, Any, Literal
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 
 
@@ -38,6 +38,11 @@ class EvidenceMetadata(BaseModel):
     entity_id: Optional[str] = None
     relationship_id: Optional[str] = None
 
+    @field_serializer('timestamp')
+    def serialize_timestamp(self, value: Optional[datetime]) -> Optional[str]:
+        """Serialize datetime to ISO format string."""
+        return value.isoformat() if value else None
+
 
 class Evidence(BaseModel):
     """Evidence item supporting an answer."""
@@ -61,7 +66,12 @@ class AgentStep(BaseModel):
     result_summary: str
     tokens: int = 0
     latency_ms: float = 0.0
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    @field_serializer('timestamp')
+    def serialize_timestamp(self, value: datetime) -> str:
+        """Serialize datetime to ISO format string."""
+        return value.isoformat()
 
 
 class AgentTrace(BaseModel):
@@ -75,7 +85,12 @@ class AgentTrace(BaseModel):
     total_tokens: int = 0
     total_latency_ms: float = 0.0
     stopping_reason: str = ""
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    @field_serializer('timestamp')
+    def serialize_timestamp(self, value: datetime) -> str:
+        """Serialize datetime to ISO format string."""
+        return value.isoformat()
 
 
 class GraphContext(BaseModel):
@@ -115,7 +130,12 @@ class PipelineResult(BaseModel):
     graph_context: Optional[GraphContext] = None
     agent_trace: Optional[AgentTrace] = None
     metrics: PipelineMetrics
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    @field_serializer('timestamp')
+    def serialize_timestamp(self, value: datetime) -> str:
+        """Serialize datetime to ISO format string."""
+        return value.isoformat()
 
 
 class CompareRequest(BaseModel):
@@ -129,7 +149,12 @@ class CompareResponse(BaseModel):
     question: str
     results: Dict[PipelineType, PipelineResult]
     comparison: Dict[str, Any]
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    @field_serializer('timestamp')
+    def serialize_timestamp(self, value: datetime) -> str:
+        """Serialize datetime to ISO format string."""
+        return value.isoformat()
 
 
 class InvestigateRequest(BaseModel):
@@ -141,7 +166,13 @@ class InvestigateRequest(BaseModel):
 class InvestigateResponse(BaseModel):
     """Response from investigation."""
     result: PipelineResult
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    investigation_id: Optional[str] = None
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    @field_serializer('timestamp')
+    def serialize_timestamp(self, value: datetime) -> str:
+        """Serialize datetime to ISO format string."""
+        return value.isoformat()
 
 
 class BenchmarkQuestion(BaseModel):
@@ -161,18 +192,28 @@ class BenchmarkResult(BaseModel):
     pipeline: PipelineType
     result: PipelineResult
     evaluation: Optional[Dict[str, Any]] = None
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    @field_serializer('timestamp')
+    def serialize_timestamp(self, value: datetime) -> str:
+        """Serialize datetime to ISO format string."""
+        return value.isoformat()
 
 
 class BenchmarkRun(BaseModel):
     """Complete benchmark run."""
     run_id: str
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     total_questions: int = 0
     completed_questions: int = 0
     results: List[BenchmarkResult] = []
     status: str = "in_progress"
     configuration: Dict[str, Any] = {}
+
+    @field_serializer('timestamp')
+    def serialize_timestamp(self, value: datetime) -> str:
+        """Serialize datetime to ISO format string."""
+        return value.isoformat()
 
 
 class MetricsSummary(BaseModel):
@@ -184,7 +225,12 @@ class MetricsSummary(BaseModel):
     agentic_behavior: Dict[str, float] = {}
     performance: Dict[str, float] = {}
     classification: Dict[str, int] = {}
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    @field_serializer('timestamp')
+    def serialize_timestamp(self, value: datetime) -> str:
+        """Serialize datetime to ISO format string."""
+        return value.isoformat()
 
 
 class HealthResponse(BaseModel):
@@ -194,4 +240,9 @@ class HealthResponse(BaseModel):
     vector_db_connected: bool = False
     llm_configured: bool = False
     vector_db_stats: Optional[Dict[str, Any]] = None
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    @field_serializer('timestamp')
+    def serialize_timestamp(self, value: datetime) -> str:
+        """Serialize datetime to ISO format string."""
+        return value.isoformat()

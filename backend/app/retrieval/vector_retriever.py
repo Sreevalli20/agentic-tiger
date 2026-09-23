@@ -22,12 +22,14 @@ class VectorRetriever:
         self.client = None
         self.collection = None
         self.embedding_model = None
+        self.embedding_type = None
         self.corpus_path = corpus_path
+        self._initialized = False
         # Lazy initialization - don't load at startup
     
     def _ensure_initialized(self):
         """Ensure ChromaDB client and embedding model are initialized (lazy load)."""
-        if self.client is not None and self.collection is not None:
+        if self._initialized:
             return  # Already initialized
         
         try:
@@ -42,11 +44,13 @@ class VectorRetriever:
                 metadata={"hnsw:space": "cosine"}
             )
             
+            self._initialized = True
             logger.info("ChromaDB initialized successfully")
         except Exception as e:
             logger.error(f"Failed to initialize ChromaDB: {e}")
             self.client = None
             self.collection = None
+            self._initialized = False
     
     def _ensure_embedding_model(self):
         """Ensure embedding model is loaded (lazy load)."""
@@ -54,26 +58,40 @@ class VectorRetriever:
             return  # Already loaded
         
         try:
-            # Use OpenAI embeddings API (no PyTorch/CUDA required)
+            # Try sentence-transformers first (CPU-only, no API key required)
+            try:
+                from sentence_transformers import SentenceTransformer
+                self.embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
+                self.embedding_type = 'sentence_transformers'
+                logger.info("SentenceTransformer embedding model initialized successfully")
+                return
+            except ImportError:
+                logger.warning("sentence-transformers not available, trying OpenAI embeddings")
+            
+            # Fallback to OpenAI embeddings API
             from app.core.config import settings
             api_key = settings.google_api_key if settings.google_api_key else settings.llm_api_key
             
             if not api_key:
                 logger.warning("No API key configured for embeddings")
                 self.embedding_model = None
+                self.embedding_type = None
                 return
             
             self.embedding_model = OpenAI(api_key=api_key)
+            self.embedding_type = 'openai'
             logger.info("OpenAI embedding client initialized successfully")
         except Exception as e:
             logger.error(f"Failed to initialize embedding client: {e}")
             self.embedding_model = None
+            self.embedding_type = None
     
-    def load_corpus(self, corpus_path: str) -> bool:
+    def load_corpus(self, corpus_path: str, max_docs: int = None) -> bool:
         """Load and index the corpus into ChromaDB.
         
         Args:
             corpus_path: Path to corpus.jsonl file
+            max_docs: Maximum number of documents to load (None for all)
             
         Returns:
             True if successful, False otherwise
@@ -104,9 +122,13 @@ class VectorRetriever:
             documents = []
             metadatas = []
             ids = []
+            doc_count = 0
             
             with open(corpus_file, 'r', encoding='utf-8') as f:
                 for line_num, line in enumerate(f, 1):
+                    if max_docs and doc_count >= max_docs:
+                        logger.info(f"Reached max documents limit: {max_docs}")
+                        break
                     try:
                         doc = json.loads(line.strip())
                         doc_id = doc.get('doc_id', f'doc_{line_num}')
@@ -125,37 +147,50 @@ class VectorRetriever:
                                 'total_chunks': len(chunks)
                             })
                             ids.append(f"{doc_id}_chunk_{chunk_idx}")
+                        doc_count += 1
                     except json.JSONDecodeError as e:
                         logger.error(f"Failed to parse line {line_num}: {e}")
             
-            logger.info(f"Processing {len(documents)} chunks for embedding...")
+            logger.info(f"Processing {len(documents)} chunks from {doc_count} documents for embedding...")
             
-            # Generate embeddings using OpenAI API
+            # Generate embeddings based on model type
             embeddings = []
-            batch_size = 100
-            for i in range(0, len(documents), batch_size):
-                batch = documents[i:i+batch_size]
-                try:
-                    response = self.embedding_model.embeddings.create(
-                        model="text-embedding-3-small",
-                        input=batch
-                    )
-                    batch_embeddings = [item.embedding for item in response.data]
-                    embeddings.extend(batch_embeddings)
-                    logger.info(f"Generated embeddings for batch {i//batch_size + 1}")
-                except Exception as e:
-                    logger.error(f"Failed to generate embeddings for batch {i//batch_size + 1}: {e}")
-                    raise
+            if self.embedding_type == 'sentence_transformers':
+                # Use sentence-transformers (CPU-only, batch processing)
+                logger.info("Using sentence-transformers for embeddings")
+                embeddings = self.embedding_model.encode(documents, show_progress_bar=True)
+                # Convert numpy array to list if needed
+                if hasattr(embeddings, 'tolist'):
+                    embeddings = embeddings.tolist()
+            elif self.embedding_type == 'openai':
+                # Use OpenAI API
+                batch_size = 100
+                for i in range(0, len(documents), batch_size):
+                    batch = documents[i:i+batch_size]
+                    try:
+                        response = self.embedding_model.embeddings.create(
+                            model="text-embedding-3-small",
+                            input=batch
+                        )
+                        batch_embeddings = [item.embedding for item in response.data]
+                        embeddings.extend(batch_embeddings)
+                        logger.info(f"Generated embeddings for batch {i//batch_size + 1}")
+                    except Exception as e:
+                        logger.error(f"Failed to generate embeddings for batch {i//batch_size + 1}: {e}")
+                        raise
+            else:
+                logger.error("No embedding model available")
+                return False
             
             # Add to collection
             self.collection.add(
                 documents=documents,
                 metadatas=metadatas,
                 ids=ids,
-                embeddings=embeddings.tolist()
+                embeddings=embeddings
             )
             
-            logger.info(f"Successfully indexed {len(documents)} chunks")
+            logger.info(f"Successfully indexed {len(documents)} chunks from {doc_count} documents")
             return True
             
         except Exception as e:
@@ -217,16 +252,28 @@ class VectorRetriever:
             return []
         
         try:
-            # Generate query embedding using OpenAI API
-            response = self.embedding_model.embeddings.create(
-                model="text-embedding-3-small",
-                input=[query]
-            )
-            query_embedding = [item.embedding for item in response.data]
+            # Generate query embedding based on model type
+            if self.embedding_type == 'sentence_transformers':
+                query_embedding = self.embedding_model.encode([query])
+                # sentence-transformers returns numpy array, convert to list
+                if hasattr(query_embedding, 'tolist'):
+                    query_embedding = query_embedding.tolist()
+                # Ensure it's a list of lists (ChromaDB format)
+                if not isinstance(query_embedding, list):
+                    query_embedding = [query_embedding]
+            elif self.embedding_type == 'openai':
+                response = self.embedding_model.embeddings.create(
+                    model="text-embedding-3-small",
+                    input=[query]
+                )
+                query_embedding = [item.embedding for item in response.data]
+            else:
+                logger.warning("No embedding model available")
+                return []
             
             # Search collection
             results = self.collection.query(
-                query_embeddings=query_embedding.tolist(),
+                query_embeddings=query_embedding,
                 n_results=top_k,
                 include=['documents', 'metadatas', 'distances']
             )
@@ -261,11 +308,67 @@ class VectorRetriever:
         
         try:
             count = self.collection.count()
+            model_name = 'none'
+            if self.embedding_type == 'sentence_transformers':
+                model_name = 'sentence-transformers/all-MiniLM-L6-v2'
+            elif self.embedding_type == 'openai':
+                model_name = 'openai/text-embedding-3-small'
+            
             return {
                 'status': 'initialized',
                 'document_count': count,
-                'embedding_model': 'openai/text-embedding-3-small' if self.embedding_model else 'none'
+                'embedding_model': model_name
             }
         except Exception as e:
             logger.error(f"Failed to get collection stats: {e}")
             return {'status': 'error', 'error': str(e)}
+    
+    def initialize_production_corpus(self, max_docs: int = 40) -> bool:
+        """Initialize production corpus if vector database is empty.
+        
+        This loads a small subset of documents for production demo.
+        
+        Args:
+            max_docs: Maximum number of documents to load
+            
+        Returns:
+            True if initialization was needed and successful, False otherwise
+        """
+        try:
+            self._ensure_initialized()
+            stats = self.get_collection_stats()
+            
+            # Only initialize if completely empty
+            if stats.get('document_count', 0) > 0:
+                logger.info(f"Vector DB already has {stats['document_count']} chunks - skipping initialization")
+                return False
+            
+            logger.info("Vector DB is empty - initializing production corpus")
+            
+            # Determine corpus path
+            from app.core.config import settings
+            corpus_path = settings.production_corpus_path
+            
+            # Try relative path first
+            corpus_file = Path(corpus_path)
+            if not corpus_file.exists():
+                # Try absolute path from project root
+                project_root = Path(__file__).parent.parent.parent.parent
+                corpus_file = project_root / "hackathon-resources" / "corpus" / "corpus_production.jsonl"
+            
+            if not corpus_file.exists():
+                logger.error(f"Production corpus file not found: {corpus_file}")
+                return False
+            
+            # Load the production corpus
+            success = self.load_corpus(str(corpus_file), max_docs=max_docs)
+            
+            if success:
+                final_stats = self.get_collection_stats()
+                logger.info(f"Production corpus initialized with {final_stats.get('document_count', 0)} chunks")
+            
+            return success
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize production corpus: {e}")
+            return False

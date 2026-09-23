@@ -2,12 +2,11 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies
+# Install minimal system dependencies
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     curl \
-    python3 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for caching
@@ -19,9 +18,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Create necessary directories
-RUN mkdir -p data/raw data/processed data/official_dataset data/vector_db \
-    evaluation/results evaluation/datasets evaluation/runners evaluation/metrics evaluation/reports evaluation/schemas
+# Create minimal necessary directories
+RUN mkdir -p data/vector_db data
 
 # Expose port
 EXPOSE 8000
@@ -30,5 +28,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/api/health || exit 1
 
-# Run the application with gunicorn for production
-CMD ["gunicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--timeout", "120"]
+# Run the application with gunicorn for production (single worker for memory efficiency)
+CMD ["gunicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--timeout", "300", "--graceful-timeout", "60"]

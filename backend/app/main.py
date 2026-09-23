@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from app.core.config import settings
-from app.api import investigate, compare, benchmark, health, trace, evidence, metrics, config
+from app.api import investigate, compare, benchmark, health, trace, evidence, metrics, config, ingest
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -14,6 +14,22 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Application lifespan manager."""
     logger.info("Starting GraphProbe AI backend...")
+    
+    # Initialize production corpus if needed
+    try:
+        from app.retrieval.vector_retriever import VectorRetriever
+        from app.core.config import settings
+        
+        if settings.production_mode:
+            logger.info("Production mode: initializing small corpus for demo")
+            retriever = VectorRetriever()
+            retriever.initialize_production_corpus(max_docs=settings.production_max_docs)
+        else:
+            logger.info("Development mode: skipping automatic corpus initialization")
+    except Exception as e:
+        logger.error(f"Failed to initialize production corpus: {e}")
+        # Don't fail startup - corpus can be loaded later
+    
     yield
     logger.info("Shutting down GraphProbe AI backend...")
 
@@ -43,6 +59,7 @@ app.include_router(trace.router, prefix="/api", tags=["trace"])
 app.include_router(evidence.router, prefix="/api", tags=["evidence"])
 app.include_router(metrics.router, prefix="/api", tags=["metrics"])
 app.include_router(config.router, prefix="/api", tags=["config"])
+app.include_router(ingest.router, prefix="/api", tags=["ingest"])
 
 
 @app.get("/")

@@ -6,6 +6,7 @@ from app.retrieval.vector_retriever import VectorRetriever
 from app.tigergraph.graph_service import GraphService
 from app.services.llm_service import LLMService
 from app.core.config import settings
+from app.storage.storage_manager import storage_manager
 from pathlib import Path
 import time
 import uuid
@@ -27,34 +28,18 @@ class AgentOrchestrator:
     def _ensure_corpus_loaded(self):
         """Ensure the corpus is loaded into the vector database (lazy load)."""
         try:
+            self.vector_retriever._ensure_initialized()
             stats = self.vector_retriever.get_collection_stats()
             
+            # Only load if completely empty (0 documents)
             if stats.get('document_count', 0) == 0:
-                # Load corpus if not already loaded
-                # Try multiple possible locations
-                possible_paths = [
-                    Path(__file__).parent.parent.parent.parent.parent / "hackathon-resources" / "corpus" / "corpus.jsonl",
-                    Path(__file__).parent.parent.parent.parent / "hackathon-resources" / "corpus" / "corpus.jsonl",
-                    Path(__file__).parent.parent.parent / "hackathon-resources" / "corpus" / "corpus.jsonl",
-                    Path("hackathon-resources") / "corpus" / "corpus.jsonl",
-                    Path("../hackathon-resources") / "corpus" / "corpus.jsonl"
-                ]
-                
-                corpus_path = None
-                for path in possible_paths:
-                    if path.exists():
-                        corpus_path = path
-                        break
-                
-                if corpus_path:
-                    logger.info(f"Loading corpus into vector database from {corpus_path}...")
-                    self.vector_retriever.load_corpus(str(corpus_path))
-                else:
-                    logger.warning(f"Corpus file not found at any of {possible_paths}")
+                logger.warning("Vector database is empty - attempting production initialization")
+                from app.core.config import settings
+                self.vector_retriever.initialize_production_corpus(max_docs=settings.production_max_docs)
             else:
-                logger.info(f"Vector database already contains {stats['document_count']} chunks")
+                logger.info(f"Vector database already contains {stats['document_count']} chunks - using existing index")
         except Exception as e:
-            logger.error(f"Failed to check/load corpus: {e}")
+            logger.error(f"Failed to check corpus status: {e}")
 
     async def run(self, question: str) -> tuple[str, AgentTrace, List[Evidence], Dict[str, Any]]:
         """Run agentic investigation on a question."""
@@ -120,7 +105,24 @@ class AgentOrchestrator:
         trace.total_latency_ms = self.track_time(state.started_at.timestamp())
         trace.stopping_reason = state.stopping_reason
         
-        state.completed_at = time.time()
+        from datetime import datetime, timezone
+        state.completed_at = datetime.now(timezone.utc)
+        
+        # Save agent trace to persistent storage
+        storage_manager.save_agent_trace({
+            'trace_id': state.run_id,
+            'run_id': state.run_id,
+            'question': question,
+            'steps': [step.model_dump() for step in trace.steps],
+            'tools_used': [tool.value for tool in state.tools_used],
+            'evidence_collected': [ev.model_dump() for ev in state.evidence],
+            'strategy_changes': trace.strategy_changes,
+            'stop_reason': state.stopping_reason,
+            'timing': {
+                'total_latency_ms': trace.total_latency_ms,
+                'total_tokens': trace.total_tokens
+            }
+        })
         
         return final_answer, trace, state.evidence, state.to_dict()
     

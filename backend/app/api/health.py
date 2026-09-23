@@ -2,6 +2,7 @@
 from fastapi import APIRouter
 from app.models.schemas import HealthResponse
 from app.core.config import settings
+from app.retrieval.vector_retriever import VectorRetriever
 import logging
 
 logger = logging.getLogger(__name__)
@@ -18,11 +19,21 @@ async def health_check():
     # Check TigerGraph configuration (don't actually connect to avoid heavy initialization)
     tigergraph_configured = bool(settings.tg_host and settings.tg_secret)
     
-    # Return healthy status without initializing heavy resources
+    # Check vector DB stats (lazy initialization)
+    vector_db_stats = {'status': 'lazy', 'message': 'Vector DB available for lazy initialization'}
+    try:
+        retriever = VectorRetriever()
+        retriever._ensure_initialized()
+        actual_stats = retriever.get_collection_stats()
+        if actual_stats.get('status') == 'initialized':
+            vector_db_stats = actual_stats
+    except Exception as e:
+        logger.warning(f"Failed to get vector DB stats: {e}")
+    
     return HealthResponse(
         status="healthy",
         tigergraph_connected=tigergraph_configured,
-        vector_db_connected=True,  # Vector DB available but not initialized yet
+        vector_db_connected=True,
         llm_configured=llm_configured,
-        vector_db_stats={'status': 'lazy', 'message': 'Vector DB available for lazy initialization'}
+        vector_db_stats=vector_db_stats
     )

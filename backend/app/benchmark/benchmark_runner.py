@@ -4,11 +4,12 @@ import uuid
 import time
 from typing import List, Dict, Any, Optional
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 from app.data.dataset_parser import DatasetParser
 from app.services.orchestrator import Orchestrator
 from app.models.schemas import PipelineType, BenchmarkRun, BenchmarkResult
 from app.core.config import settings
+from app.storage.storage_manager import storage_manager
 import logging
 
 logger = logging.getLogger(__name__)
@@ -21,8 +22,7 @@ class BenchmarkRunner:
         """Initialize benchmark runner."""
         self.orchestrator = Orchestrator()
         self.parser = None
-        self.results_dir = Path(settings.benchmark_output_path)
-        self.results_dir.mkdir(parents=True, exist_ok=True)
+        self.storage = storage_manager
     
     def load_evaluation_questions(self, questions_path: str) -> List[Dict[str, Any]]:
         """Load public evaluation questions.
@@ -102,7 +102,7 @@ class BenchmarkRunner:
             configuration={
                 "pipelines": [p.value for p in pipelines],
                 "limit": limit,
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
         )
         
@@ -157,8 +157,17 @@ class BenchmarkRunner:
         benchmark_run.results = results
         benchmark_run.status = "completed"
         
-        # Save final results
+        # Save final results to persistent storage
         self._save_results(run_id, results)
+        
+        # Update benchmark run status to completed
+        self.storage.save_benchmark_run({
+            'run_id': run_id,
+            'status': 'completed',
+            'total_questions': len(questions),
+            'completed_questions': len(questions),
+            'configuration': benchmark_run.configuration
+        })
         
         logger.info(f"Benchmark run {run_id} completed")
         
@@ -202,40 +211,42 @@ class BenchmarkRunner:
         }
     
     def _save_results(self, run_id: str, results: List[BenchmarkResult]):
-        """Save benchmark results to file.
+        """Save benchmark results to persistent storage.
         
         Args:
             run_id: Benchmark run ID
             results: List of benchmark results
         """
         try:
-            results_file = self.results_dir / f"{run_id}.json"
+            # Update benchmark run status
+            self.storage.save_benchmark_run({
+                'run_id': run_id,
+                'status': 'in_progress',
+                'total_questions': len(results) // 3,  # Approximate based on 3 pipelines
+                'completed_questions': len(results) // 3,
+                'configuration': {}
+            })
             
-            # Convert to serializable format
-            serializable_results = []
+            # Save individual results
             for r in results:
-                serializable_results.append({
-                    "run_id": r.run_id,
-                    "question_id": r.question_id,
-                    "question": r.question,
-                    "pipeline": r.pipeline.value,
-                    "answer": r.result.answer,
-                    "confidence": r.result.confidence,
-                    "metrics": r.result.metrics.dict(),
-                    "evaluation": r.evaluation,
-                    "timestamp": r.timestamp.isoformat()
+                self.storage.save_benchmark_result({
+                    'run_id': run_id,
+                    'question_id': r.question_id,
+                    'question': r.question,
+                    'pipeline': r.pipeline.value,
+                    'answer': r.result.answer,
+                    'confidence': r.result.confidence,
+                    'metrics': r.result.metrics.model_dump(),
+                    'evaluation': r.evaluation
                 })
             
-            with open(results_file, 'w', encoding='utf-8') as f:
-                json.dump(serializable_results, f, indent=2)
-            
-            logger.info(f"Saved results to {results_file}")
+            logger.info(f"Saved {len(results)} benchmark results to persistent storage")
             
         except Exception as e:
             logger.error(f"Failed to save results: {e}")
     
     def get_results(self, run_id: str) -> Optional[List[Dict[str, Any]]]:
-        """Load benchmark results from file.
+        """Load benchmark results from persistent storage.
         
         Args:
             run_id: Benchmark run ID
@@ -244,16 +255,13 @@ class BenchmarkRunner:
             List of benchmark results or None if not found
         """
         try:
-            results_file = self.results_dir / f"{run_id}.json"
+            results = self.storage.get_benchmark_results(run_id)
             
-            if not results_file.exists():
-                logger.warning(f"Results file not found: {results_file}")
+            if not results:
+                logger.warning(f"No results found for run {run_id}")
                 return None
             
-            with open(results_file, 'r', encoding='utf-8') as f:
-                results = json.load(f)
-            
-            logger.info(f"Loaded results from {results_file}")
+            logger.info(f"Loaded {len(results)} results from persistent storage")
             return results
             
         except Exception as e:
@@ -261,31 +269,21 @@ class BenchmarkRunner:
             return None
     
     def get_all_runs(self) -> List[Dict[str, Any]]:
-        """Get all benchmark runs.
+        """Get all benchmark runs from persistent storage.
         
         Returns:
             List of benchmark run summaries
         """
         try:
-            runs = []
+            runs = self.storage.get_all_benchmark_runs()
             
-            for results_file in self.results_dir.glob("*.json"):
-                try:
-                    with open(results_file, 'r', encoding='utf-8') as f:
-                        results = json.load(f)
-                    
-                    if results:
-                        run_id = results_file.stem
-                        runs.append({
-                            "run_id": run_id,
-                            "total_results": len(results),
-                            "file_path": str(results_file),
-                            "timestamp": results[0].get("timestamp") if results else None
-                        })
-                except Exception as e:
-                    logger.error(f"Failed to read {results_file}: {e}")
+            # Add result counts
+            for run in runs:
+                results = self.storage.get_benchmark_results(run['run_id'])
+                run['total_results'] = len(results)
+                run['timestamp'] = run.get('created_at')
             
-            return sorted(runs, key=lambda x: x.get("timestamp", ""), reverse=True)
+            return runs
             
         except Exception as e:
             logger.error(f"Failed to get runs: {e}")

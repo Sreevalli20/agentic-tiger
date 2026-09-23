@@ -19,16 +19,11 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-MANIFEST
-.venv/
-venv/
-ENV/
-env/
 
-# Environment
-.env
-.env.local
-.env.*.local
+# Virtual environments
+venv/
+env/
+ENV/
 
 # IDE
 .vscode/
@@ -36,41 +31,40 @@ env/
 *.swp
 *.swo
 *~
-.DS_Store
 
-# Data
-data/raw/
-data/processed/
-data/official_dataset/
+# OS
+.DS_Store
+Thumbs.db
+
+# Data (will be initialized in container)
 data/vector_db/*
-!data/vector_db/.gitkeep
-evaluation/results/*.json
-evaluation/results/*.jsonl
-evaluation/results/*.csv
-!evaluation/results/.gitkeep
+data/*.db
+!data/.gitkeep
+
+# Evaluation
+evaluation/results/*
+evaluation/datasets/*
+evaluation/runners/*
+evaluation/metrics/*
+evaluation/reports/*
+evaluation/schemas/*
 
 # Logs
 *.log
-logs/
 
-# Database
-*.db
-*.sqlite
-*.sqlite3
+# Environment
+.env.local
+.env.*.local
 
-# Coverage
-.coverage
-htmlcov/
+# Tests
+tests/
 .pytest_cache/
 
-# Jupyter
-.ipynb_checkpoints/
-*.ipynb
+# Documentation
+docs/
+*.md
+!README.md
 
-# Git
-.git/
-.gitignore
-
-# Docker
-Dockerfile
-.dockerignore
+# Hackathon resources (use production corpus only)
+hackathon-resources/corpus/corpus.jsonl
+!hackathon-resources/corpus/corpus_production.jsonl

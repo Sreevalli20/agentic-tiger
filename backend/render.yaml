@@ -11,7 +11,7 @@ services:
       - key: APP_PORT
         value: 8000
       - key: PORT
-        value: 8000
+        sync: false
       - key: PYTHON_VERSION
         value: 3.11
       - key: LLM_PROVIDER
@@ -28,6 +28,8 @@ services:
         value: Transaction_Fraud
       - key: VECTOR_DB_PATH
         value: ./data/vector_db
+      - key: STORAGE_DB_PATH
+        value: ./data/graphprobe.db
       - key: CHUNK_SIZE
         value: 500
       - key: CHUNK_OVERLAP
@@ -43,4 +45,4 @@ services:
       - key: GOOGLE_API_KEY
         sync: false
       - key: CORS_ORIGINS
-        value: https://graphprobe-ai.vercel.app,https://graphprobe-ai-frontend.vercel.app
+        value: https://frontend-81rdtgomo-siris-projects-3809a50.vercel.app,http://localhost:3000,http://localhost:5173

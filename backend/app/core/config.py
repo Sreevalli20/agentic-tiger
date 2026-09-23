@@ -24,10 +24,13 @@ class Settings(BaseSettings):
     # Vector Database Configuration
     vector_db_path: str = "./data/vector_db"
     
+    # Storage Database Configuration
+    storage_db_path: str = "./data/graphprobe.db"
+    
     # Application Configuration
     app_host: str = "0.0.0.0"
     app_port: int = 8000
-    cors_origins: List[str] = ["http://localhost:3000", "http://localhost:5173", "https://graphprobe-ai.vercel.app", "https://graphprobe-ai-frontend.vercel.app"]
+    cors_origins: List[str] = ["http://localhost:3000", "http://localhost:5173", "https://frontend-81rdtgomo-siris-projects-3809a50.vercel.app"]
     
     # Data Configuration
     data_path: str = "./data"
@@ -43,6 +46,11 @@ class Settings(BaseSettings):
     # Benchmark Configuration
     benchmark_output_path: str = "./evaluation/results"
     max_concurrent_benchmarks: int = 3
+    
+    # Production Configuration
+    production_mode: bool = True
+    production_corpus_path: str = "./hackathon-resources/corpus/corpus_production.jsonl"
+    production_max_docs: int = 40
     
     class Config:
         env_file = ".env"
