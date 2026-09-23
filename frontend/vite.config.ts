@@ -17,8 +17,7 @@ export default defineConfig(({ mode }) => {
     },
     define: {
       'import.meta.env.VITE_API_BASE_URL': JSON.stringify(
-        env.VITE_API_BASE_URL || 
-        (mode === 'production' ? 'https://graphprobe-backend.onrender.com' : 'http://localhost:8000')
+        env.VITE_API_BASE_URL || 'https://graphprobe-ai-backend.onrender.com'
       )
     }
   }
