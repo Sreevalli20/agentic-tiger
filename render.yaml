@@ -17,3 +17,9 @@ services:
         value: Transaction_Fraud
       - key: GOOGLE_API_KEY
         sync: false
+      - key: PRODUCTION_MODE
+        value: "true"
+      - key: PRODUCTION_MAX_DOCS
+        value: "40"
+      - key: CORS_ORIGINS
+        value: https://frontend-jdmw8kj8a-siris-projects-3809a50.vercel.app,https://frontend-81rdtgomo-siris-projects-3809a50.vercel.app,https://frontend-eqzjr0em9-siris-projects-3809a50c.vercel.app

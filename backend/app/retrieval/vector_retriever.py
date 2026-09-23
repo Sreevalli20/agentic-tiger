@@ -347,11 +347,22 @@ class VectorRetriever:
             logger.info("Vector DB is empty - initializing production corpus")
             
             # Determine corpus path - try multiple locations
-            project_root = Path(__file__).parent.parent.parent.parent
-            corpus_file = project_root / "hackathon-resources" / "corpus" / "corpus_production.jsonl"
+            # First try backend directory (for Render deployment)
+            backend_dir = Path(__file__).parent.parent.parent
+            corpus_file = backend_dir / "corpus_production.jsonl"
+            
+            if not corpus_file.exists():
+                # Try hackathon-resources in backend directory
+                corpus_file = backend_dir / "hackathon-resources" / "corpus" / "corpus_production.jsonl"
+            
+            if not corpus_file.exists():
+                # Try project root (for local development)
+                project_root = Path(__file__).parent.parent.parent.parent
+                corpus_file = project_root / "hackathon-resources" / "corpus" / "corpus_production.jsonl"
             
             if not corpus_file.exists():
                 # Fallback to full corpus if production corpus doesn't exist
+                project_root = Path(__file__).parent.parent.parent.parent
                 corpus_file = project_root / "hackathon-resources" / "corpus" / "corpus.jsonl"
                 logger.warning(f"Production corpus not found, using full corpus: {corpus_file}")
             
