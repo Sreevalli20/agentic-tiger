@@ -33,12 +33,20 @@ class VectorRetriever:
             return  # Already initialized
         
         try:
-            # Initialize ChromaDB - use absolute path from backend directory
-            from pathlib import Path
-            db_path = Path(__file__).parent.parent.parent / "data" / "vector_db"
-            db_path.mkdir(parents=True, exist_ok=True)
+            # Initialize ChromaDB - use in-memory for Render (no persistent disk)
+            # In production, we'll reload corpus on startup since disk doesn't persist
+            from app.core.config import settings
+            if settings.production_mode:
+                self.client = chromadb.Client()
+                logger.info("ChromaDB initialized with in-memory client for production")
+            else:
+                # Local development: use persistent storage
+                from pathlib import Path
+                db_path = Path(__file__).parent.parent.parent / "data" / "vector_db"
+                db_path.mkdir(parents=True, exist_ok=True)
+                self.client = chromadb.PersistentClient(path=str(db_path))
+                logger.info(f"ChromaDB initialized with persistent client at {db_path}")
             
-            self.client = chromadb.PersistentClient(path=str(db_path))
             self.collection = self.client.get_or_create_collection(
                 name="documents",
                 metadata={"hnsw:space": "cosine"}

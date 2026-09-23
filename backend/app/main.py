@@ -23,16 +23,12 @@ async def lifespan(app: FastAPI):
             retriever = VectorRetriever()
             retriever._ensure_initialized()
             retriever._ensure_embedding_model()
-            stats = retriever.get_collection_stats()
             
-            # Only initialize if collection is empty
-            if stats.get('document_count', 0) == 0:
-                logger.info("Vector DB is empty - initializing with production corpus")
-                success = retriever.initialize_production_corpus(max_docs=settings.production_max_docs)
-                final_stats = retriever.get_collection_stats()
-                logger.info(f"Startup initialization complete: {final_stats.get('document_count', 0)} chunks")
-            else:
-                logger.info(f"Vector DB already has {stats.get('document_count', 0)} chunks - skipping initialization")
+            # Always initialize corpus in production mode (in-memory DB needs data on startup)
+            logger.info("Loading production corpus into in-memory vector DB")
+            success = retriever.initialize_production_corpus(max_docs=settings.production_max_docs)
+            final_stats = retriever.get_collection_stats()
+            logger.info(f"Startup initialization complete: {final_stats.get('document_count', 0)} chunks")
             final_stats = retriever.get_collection_stats()
             logger.info(f"Startup initialization complete: {final_stats.get('document_count', 0)} chunks")
         except Exception as e:

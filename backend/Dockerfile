@@ -19,10 +19,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Create necessary directories
-RUN mkdir -p data/vector_db data
-
-# Run startup initialization to pre-load vector DB
-RUN python startup_init.py || echo "Startup initialization failed, will retry at runtime"
+RUN mkdir -p data
 
 # Expose port
 EXPOSE 8000
