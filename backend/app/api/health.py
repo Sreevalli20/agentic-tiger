@@ -37,9 +37,12 @@ async def health_check():
             except Exception as init_error:
                 logger.error(f"Fallback initialization failed: {init_error}")
                 # Still try to return current stats even if init failed
-                pass
+                logger.info(f"Returning current stats despite init failure: {actual_stats}")
         
         if actual_stats.get('status') == 'initialized':
+            vector_db_stats = actual_stats
+        elif actual_stats.get('document_count', 0) > 0:
+            # Even if status is not 'initialized', if we have documents, report them
             vector_db_stats = actual_stats
     except Exception as e:
         logger.warning(f"Failed to get/initialize vector DB stats: {e}")
