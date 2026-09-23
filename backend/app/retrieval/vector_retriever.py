@@ -75,9 +75,11 @@ class VectorRetriever:
                 logger.error(f"Corpus file not found: {corpus_path}")
                 return False
             
-            self.documents = []
-            self.metadatas = []
-            self.ids = []
+            # Load into global shared data directly
+            global _documents, _metadatas, _ids
+            _documents.clear()
+            _metadatas.clear()
+            _ids.clear()
             doc_count = 0
             
             with open(corpus_file, 'r', encoding='utf-8') as f:
@@ -94,43 +96,40 @@ class VectorRetriever:
                         chunks = self._chunk_text(text, chunk_size=500, overlap=50)
                         
                         for chunk_idx, chunk in enumerate(chunks):
-                            self.documents.append(chunk)
-                            self.metadatas.append({
+                            _documents.append(chunk)
+                            _metadatas.append({
                                 'doc_id': doc_id,
                                 'title': doc.get('title', ''),
                                 'url': doc.get('url', ''),
                                 'chunk_index': chunk_idx,
                                 'total_chunks': len(chunks)
                             })
-                            self.ids.append(f"{doc_id}_chunk_{chunk_idx}")
+                            _ids.append(f"{doc_id}_chunk_{chunk_idx}")
                         doc_count += 1
                     except json.JSONDecodeError as e:
                         logger.error(f"Failed to parse line {line_num}: {e}")
             
-            logger.info(f"Processing {len(self.documents)} chunks from {doc_count} documents for TF-IDF indexing...")
+            logger.info(f"Processing {len(_documents)} chunks from {doc_count} documents for TF-IDF indexing...")
             
-            # Build TF-IDF index
-            self.tfidf_vectorizer = TfidfVectorizer(
+            # Build TF-IDF index on global data
+            global _tfidf_vectorizer, _tfidf_matrix, _initialized
+            _tfidf_vectorizer = TfidfVectorizer(
                 max_features=5000,
                 stop_words='english',
                 ngram_range=(1, 2)
             )
-            self.tfidf_matrix = self.tfidf_vectorizer.fit_transform(self.documents)
-            
-            # Update module-level shared data
-            global _documents, _metadatas, _ids
-            global _tfidf_vectorizer, _tfidf_matrix, _initialized
-            _documents.clear()
-            _documents.extend(self.documents)
-            _metadatas.clear()
-            _metadatas.extend(self.metadatas)
-            _ids.clear()
-            _ids.extend(self.ids)
-            _tfidf_vectorizer = self.tfidf_vectorizer
-            _tfidf_matrix = self.tfidf_matrix
+            _tfidf_matrix = _tfidf_vectorizer.fit_transform(_documents)
             _initialized = True
             
-            logger.info(f"Successfully indexed {len(self.documents)} chunks from {doc_count} documents using TF-IDF")
+            # Update instance references to point to global data
+            self.documents = _documents
+            self.metadatas = _metadatas
+            self.ids = _ids
+            self.tfidf_vectorizer = _tfidf_vectorizer
+            self.tfidf_matrix = _tfidf_matrix
+            self._initialized = _initialized
+            
+            logger.info(f"Successfully indexed {len(_documents)} chunks from {doc_count} documents using TF-IDF")
             return True
             
         except Exception as e:
@@ -182,16 +181,18 @@ class VectorRetriever:
         """
         self._ensure_initialized()
         
-        if not self.tfidf_vectorizer or self.tfidf_matrix is None:
+        global _tfidf_vectorizer, _tfidf_matrix, _documents, _metadatas, _ids
+        
+        if not _tfidf_vectorizer or _tfidf_matrix is None:
             logger.warning("TF-IDF index not available, returning empty results")
             return []
         
         try:
             # Transform query using the same TF-IDF vectorizer
-            query_tfidf = self.tfidf_vectorizer.transform([query])
+            query_tfidf = _tfidf_vectorizer.transform([query])
             
             # Calculate cosine similarity
-            similarities = cosine_similarity(query_tfidf, self.tfidf_matrix).flatten()
+            similarities = cosine_similarity(query_tfidf, _tfidf_matrix).flatten()
             
             # Get top-k indices
             top_indices = np.argsort(similarities)[::-1][:top_k]
@@ -200,11 +201,11 @@ class VectorRetriever:
             formatted_results = []
             for idx in top_indices:
                 formatted_results.append({
-                    'content': self.documents[idx],
-                    'document_id': self.metadatas[idx].get('doc_id', 'unknown'),
-                    'chunk_id': self.ids[idx],
+                    'content': _documents[idx],
+                    'document_id': _metadatas[idx].get('doc_id', 'unknown'),
+                    'chunk_id': _ids[idx],
                     'score': float(similarities[idx]),
-                    'metadata': self.metadatas[idx]
+                    'metadata': _metadatas[idx]
                 })
             
             logger.info(f"Retrieved {len(formatted_results)} chunks for query: {query[:50]}...")
@@ -224,9 +225,10 @@ class VectorRetriever:
             return {'status': 'not_initialized'}
         
         try:
+            global _documents
             return {
                 'status': 'initialized',
-                'document_count': len(self.documents),
+                'document_count': len(_documents),
                 'embedding_model': 'tf-idf'
             }
         except Exception as e:
