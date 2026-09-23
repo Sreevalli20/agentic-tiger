@@ -18,7 +18,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Create minimal necessary directories
+# Create necessary directories
 RUN mkdir -p data/vector_db data
 
 # Expose port
