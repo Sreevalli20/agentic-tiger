@@ -367,19 +367,27 @@ class VectorRetriever:
             backend_dir = Path(__file__).parent.parent.parent
             project_root = Path(__file__).parent.parent.parent.parent
             
-            # Try backend directory first (for Render deployment)
-            corpus_file = backend_dir / "corpus_production.jsonl"
-            logger.info(f"Trying corpus path: {corpus_file}, exists: {corpus_file.exists()}")
+            # In Docker/Render, the working directory is /app (backend root)
+            # Try current working directory first
+            from pathlib import Path
+            cwd = Path.cwd()
+            corpus_file = cwd / "corpus_production.jsonl"
+            logger.info(f"Trying corpus path (cwd): {corpus_file}, exists: {corpus_file.exists()}")
+            
+            if not corpus_file.exists():
+                # Try backend directory (for Render deployment)
+                corpus_file = backend_dir / "corpus_production.jsonl"
+                logger.info(f"Trying corpus path (backend_dir): {corpus_file}, exists: {corpus_file.exists()}")
             
             if not corpus_file.exists():
                 # Try hackathon-resources in backend directory
                 corpus_file = backend_dir / "hackathon-resources" / "corpus" / "corpus_production.jsonl"
-                logger.info(f"Trying corpus path: {corpus_file}, exists: {corpus_file.exists()}")
+                logger.info(f"Trying corpus path (backend/hackathon): {corpus_file}, exists: {corpus_file.exists()}")
             
             if not corpus_file.exists():
                 # Try project root (for local development)
                 corpus_file = project_root / "hackathon-resources" / "corpus" / "corpus_production.jsonl"
-                logger.info(f"Trying corpus path: {corpus_file}, exists: {corpus_file.exists()}")
+                logger.info(f"Trying corpus path (project_root): {corpus_file}, exists: {corpus_file.exists()}")
             
             if not corpus_file.exists():
                 # Fallback to full corpus if production corpus doesn't exist
