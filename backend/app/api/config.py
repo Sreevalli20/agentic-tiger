@@ -21,7 +21,7 @@ async def get_config():
         "tigergraph_graph": settings.tg_graphname,
         "tigergraph_configured": bool(settings.tg_secret),
         "vector_db_path": settings.vector_db_path,
-        "embedding_model": settings.embedding_model,
+        "embedding_model": "openai/text-embedding-3-small",
         "max_agent_iterations": settings.max_agent_iterations,
         "evidence_sufficiency_threshold": settings.evidence_sufficiency_threshold,
         "max_token_budget": settings.max_token_budget

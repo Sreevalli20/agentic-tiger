@@ -28,8 +28,6 @@ services:
         value: Transaction_Fraud
       - key: VECTOR_DB_PATH
         value: ./data/vector_db
-      - key: EMBEDDING_MODEL
-        value: sentence-transformers/all-MiniLM-L6-v2
       - key: CHUNK_SIZE
         value: 500
       - key: CHUNK_OVERLAP

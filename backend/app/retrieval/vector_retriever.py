@@ -2,7 +2,7 @@
 from typing import List, Dict, Any, Optional
 import chromadb
 from chromadb.config import Settings
-from sentence_transformers import SentenceTransformer
+from openai import OpenAI
 import logging
 from pathlib import Path
 import json
@@ -54,14 +54,19 @@ class VectorRetriever:
             return  # Already loaded
         
         try:
-            # Force CPU-only mode to avoid GPU memory issues
-            import os
-            os.environ['TORCH_CPU_ONLY'] = '1'
+            # Use OpenAI embeddings API (no PyTorch/CUDA required)
+            from app.core.config import settings
+            api_key = settings.google_api_key if settings.google_api_key else settings.llm_api_key
             
-            self.embedding_model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2', device='cpu')
-            logger.info("Embedding model loaded successfully (CPU-only)")
+            if not api_key:
+                logger.warning("No API key configured for embeddings")
+                self.embedding_model = None
+                return
+            
+            self.embedding_model = OpenAI(api_key=api_key)
+            logger.info("OpenAI embedding client initialized successfully")
         except Exception as e:
-            logger.error(f"Failed to load embedding model: {e}")
+            logger.error(f"Failed to initialize embedding client: {e}")
             self.embedding_model = None
     
     def load_corpus(self, corpus_path: str) -> bool:
@@ -125,8 +130,22 @@ class VectorRetriever:
             
             logger.info(f"Processing {len(documents)} chunks for embedding...")
             
-            # Generate embeddings
-            embeddings = self.embedding_model.encode(documents, show_progress_bar=True)
+            # Generate embeddings using OpenAI API
+            embeddings = []
+            batch_size = 100
+            for i in range(0, len(documents), batch_size):
+                batch = documents[i:i+batch_size]
+                try:
+                    response = self.embedding_model.embeddings.create(
+                        model="text-embedding-3-small",
+                        input=batch
+                    )
+                    batch_embeddings = [item.embedding for item in response.data]
+                    embeddings.extend(batch_embeddings)
+                    logger.info(f"Generated embeddings for batch {i//batch_size + 1}")
+                except Exception as e:
+                    logger.error(f"Failed to generate embeddings for batch {i//batch_size + 1}: {e}")
+                    raise
             
             # Add to collection
             self.collection.add(
@@ -198,8 +217,12 @@ class VectorRetriever:
             return []
         
         try:
-            # Generate query embedding
-            query_embedding = self.embedding_model.encode([query])
+            # Generate query embedding using OpenAI API
+            response = self.embedding_model.embeddings.create(
+                model="text-embedding-3-small",
+                input=[query]
+            )
+            query_embedding = [item.embedding for item in response.data]
             
             # Search collection
             results = self.collection.query(
@@ -241,7 +264,7 @@ class VectorRetriever:
             return {
                 'status': 'initialized',
                 'document_count': count,
-                'embedding_model': 'sentence-transformers/all-MiniLM-L6-v2' if self.embedding_model else 'none'
+                'embedding_model': 'openai/text-embedding-3-small' if self.embedding_model else 'none'
             }
         except Exception as e:
             logger.error(f"Failed to get collection stats: {e}")

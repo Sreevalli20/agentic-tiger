@@ -23,7 +23,6 @@ class Settings(BaseSettings):
     
     # Vector Database Configuration
     vector_db_path: str = "./data/vector_db"
-    embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
     
     # Application Configuration
     app_host: str = "0.0.0.0"

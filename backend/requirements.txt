@@ -17,7 +17,6 @@ google-genai>=1.0.0
 
 # Vector (CPU-only)
 chromadb>=0.5.0
-sentence-transformers>=3.0.0
 
 # Data processing
 numpy>=1.26.0
