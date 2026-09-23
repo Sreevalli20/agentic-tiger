@@ -17,13 +17,17 @@ logger = logging.getLogger(__name__)
 def check_tigergraph():
     """Check TigerGraph connection."""
     try:
-        from pytigergraph import TigerGraphConnection
+        from pyTigerGraph import TigerGraphConnection
+        # Ensure host includes protocol
+        host = settings.tg_host
+        if not host.startswith(('http://', 'https://')):
+            host = f'http://{host}'
+        
         conn = TigerGraphConnection(
-            host=settings.tigergraph_host,
-            port=settings.tigergraph_port,
-            username=settings.tigergraph_username,
-            password=settings.tigergraph_password,
-            graphname=settings.tigergraph_graph
+            host=host,
+            restppPort=settings.tg_port,
+            gsqlSecret=settings.tg_secret,
+            graphname=settings.tg_graphname
         )
         # Test connection
         version = conn.getVersion()
@@ -64,10 +68,9 @@ def check_dependencies():
         "fastapi",
         "uvicorn",
         "pydantic",
-        "pytigergraph",
+        "pyTigerGraph",
         "openai",
         "chromadb",
-        "sentence_transformers",
         "pandas",
         "numpy",
     ]
@@ -75,7 +78,11 @@ def check_dependencies():
     missing = []
     for package in required_packages:
         try:
-            __import__(package.replace("-", "_"))
+            # Handle special import names
+            if package == "pyTigerGraph":
+                __import__("pyTigerGraph")
+            else:
+                __import__(package.replace("-", "_"))
         except ImportError:
             missing.append(package)
     

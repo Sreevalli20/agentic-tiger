@@ -26,18 +26,22 @@ class GraphService:
     def _initialize(self):
         """Initialize TigerGraph connection."""
         try:
-            # Try to import pytigergraph with fallback handling
             try:
-                from pytigergraph import TigerGraphConnection
+                from pyTigerGraph import TigerGraphConnection
             except ImportError:
-                logger.warning("pytigergraph not available - TigerGraph features will be disabled")
+                logger.warning("pyTigerGraph not available - TigerGraph features will be disabled")
                 self.conn = None
                 return
             
+            # Ensure host includes protocol
+            host = settings.tg_host
+            if not host.startswith(('http://', 'https://')):
+                host = f'http://{host}'
+            
             self.conn = TigerGraphConnection(
-                host=settings.tg_host,
-                port=settings.tg_port,
-                password=settings.tg_secret,
+                host=host,
+                restppPort=settings.tg_port,
+                gsqlSecret=settings.tg_secret,
                 graphname=settings.tg_graphname
             )
             logger.info("TigerGraph connection initialized")

@@ -4,6 +4,9 @@ from app.models.schemas import BenchmarkRun, BenchmarkResult
 from app.benchmark.benchmark_runner import benchmark_runner
 from app.models.schemas import PipelineType
 from typing import Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -28,14 +31,17 @@ async def run_benchmark(
         else:
             pipeline_types = [PipelineType.RAG, PipelineType.GRAPHRAG, PipelineType.AGENTIC]
         
-        # Run benchmark in background
+        # Run benchmark in background with timeout handling
         def run_task():
             import asyncio
-            asyncio.run(benchmark_runner.run_benchmark(
-                pipelines=pipeline_types,
-                limit=limit,
-                resume_from=resume_from
-            ))
+            try:
+                asyncio.run(benchmark_runner.run_benchmark(
+                    pipelines=pipeline_types,
+                    limit=limit,
+                    resume_from=resume_from
+                ))
+            except Exception as e:
+                logger.error(f"Benchmark task failed: {e}")
         
         background_tasks.add_task(run_task)
         
@@ -46,6 +52,7 @@ async def run_benchmark(
             "limit": limit
         }
     except Exception as e:
+        logger.error(f"Failed to start benchmark: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

@@ -2,7 +2,7 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 
   (typeof window !== 'undefined' && window.location.hostname === 'localhost' 
     ? 'http://localhost:8000' 
-    : 'https://graphprobe-backend.onrender.com');
+    : 'https://graphprobe-ai-backend.onrender.com');
 
 export const api = {
   /**
@@ -111,6 +111,13 @@ export const api = {
    */
   async getEvidence(runId: string) {
     return this.request(`/api/evidence/${runId}`);
+  },
+
+  /**
+   * Get evidence graph context
+   */
+  async getEvidenceGraph(runId: string) {
+    return this.request(`/api/evidence/${runId}/graph`);
   },
 
   /**

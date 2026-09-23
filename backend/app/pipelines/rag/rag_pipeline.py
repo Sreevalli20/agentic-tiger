@@ -23,34 +23,17 @@ class RAGPipeline(BasePipeline):
     def _ensure_corpus_loaded(self):
         """Ensure the corpus is loaded into the vector database (lazy load)."""
         try:
+            self.vector_retriever._ensure_initialized()
             stats = self.vector_retriever.get_collection_stats()
             
+            # Only load if completely empty (0 documents)
             if stats.get('document_count', 0) == 0:
-                # Load corpus if not already loaded
-                # Try multiple possible locations
-                possible_paths = [
-                    Path(__file__).parent.parent.parent.parent.parent / "hackathon-resources" / "corpus" / "corpus.jsonl",
-                    Path(__file__).parent.parent.parent.parent / "hackathon-resources" / "corpus" / "corpus.jsonl",
-                    Path(__file__).parent.parent.parent / "hackathon-resources" / "corpus" / "corpus.jsonl",
-                    Path("hackathon-resources") / "corpus" / "corpus.jsonl",
-                    Path("../hackathon-resources") / "corpus" / "corpus.jsonl"
-                ]
-                
-                corpus_path = None
-                for path in possible_paths:
-                    if path.exists():
-                        corpus_path = path
-                        break
-                
-                if corpus_path:
-                    logger.info(f"Loading corpus into vector database from {corpus_path}...")
-                    self.vector_retriever.load_corpus(str(corpus_path))
-                else:
-                    logger.warning(f"Corpus file not found at any of {possible_paths}")
+                logger.warning("Vector database is empty - no indexed data available")
+                # Don't auto-load full corpus in production - use pre-indexed demo data
             else:
-                logger.info(f"Vector database already contains {stats['document_count']} chunks")
+                logger.info(f"Vector database already contains {stats['document_count']} chunks - using existing index")
         except Exception as e:
-            logger.error(f"Failed to check/load corpus: {e}")
+            logger.error(f"Failed to check corpus status: {e}")
     
     async def run(self, question: str) -> PipelineResult:
         """Run RAG pipeline on a question."""
