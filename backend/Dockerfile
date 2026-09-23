@@ -21,6 +21,9 @@ COPY . .
 # Create necessary directories
 RUN mkdir -p data
 
+# Verify corpus file exists
+RUN ls -la corpus_production.jsonl || echo "corpus_production.jsonl not found"
+
 # Expose port
 EXPOSE 8000
 
