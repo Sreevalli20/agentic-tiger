@@ -127,11 +127,9 @@ async def get_ingestion_status():
     try:
         retriever = VectorRetriever()
         stats = retriever.get_collection_stats()
-        storage_stats = storage_manager.get_storage_stats()
         
         return {
             "vector_db": stats,
-            "storage": storage_stats,
             "status": "ready"
         }
     except Exception as e:
