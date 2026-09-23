@@ -14,6 +14,13 @@ export default function Overview() {
         setHealthStatus(health)
       } catch (error) {
         console.error('Failed to fetch health status:', error)
+        // Set a default status so UI still renders
+        setHealthStatus({
+          status: 'unavailable',
+          tigergraph_connected: false,
+          vector_db_connected: false,
+          llm_configured: false
+        })
       } finally {
         setLoading(false)
       }

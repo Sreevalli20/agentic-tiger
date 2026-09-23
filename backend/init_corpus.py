@@ -14,13 +14,11 @@ def main():
     retriever._ensure_initialized()
     retriever._ensure_embedding_model()
     
-    # Clear existing data
-    if retriever.collection:
-        try:
-            retriever.collection.delete()
-            print("Cleared existing vector collection")
-        except Exception as e:
-            print(f"Failed to clear collection: {e}")
+    # Check if already initialized
+    stats = retriever.get_collection_stats()
+    if stats.get('document_count', 0) > 0:
+        print(f"Vector DB already has {stats['document_count']} chunks, skipping initialization")
+        return True
     
     # Initialize with production corpus
     success = retriever.initialize_production_corpus(max_docs=40)
