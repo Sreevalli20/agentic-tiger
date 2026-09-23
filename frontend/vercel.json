@@ -2,16 +2,13 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "framework": "vite",
-  "env": {
-    "VITE_API_BASE_URL": {
-      "description": "Backend API URL for production",
-      "value": "https://graphprobe-backend.onrender.com"
-    }
-  },
   "rewrites": [
     {
       "source": "/(.*)",
       "destination": "/index.html"
     }
-  ]
+  ],
+  "env": {
+    "VITE_API_BASE_URL": "https://graphprobe-backend.onrender.com"
+  }
 }
