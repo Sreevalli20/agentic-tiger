@@ -34,11 +34,11 @@ class AgentOrchestrator:
             
             # Only load if completely empty (0 documents)
             if stats.get('document_count', 0) == 0:
-                logger.warning("Vector database is empty - attempting production initialization")
+                logger.warning("Vector database is empty - attempting fallback initialization")
                 from app.core.config import settings
-                self.vector_retriever.initialize_production_corpus(max_docs=settings.production_max_docs)
+                self.vector_retriever._create_fallback_corpus(max_docs=40)
                 stats = self.vector_retriever.get_collection_stats()
-                logger.info(f"After initialization: {stats}")
+                logger.info(f"After fallback initialization: {stats}")
             else:
                 logger.info(f"Vector database already contains {stats['document_count']} chunks - using existing index")
         except Exception as e:
