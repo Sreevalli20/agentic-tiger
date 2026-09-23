@@ -428,19 +428,19 @@ class VectorRetriever:
         try:
             logger.info("Creating fallback sample corpus")
             
-            # Sample documents about Olympic events
+            # Sample documents about Olympic events - including the critical Chen Ding document
             sample_docs = [
                 {
-                    "doc_id": "sample_1",
-                    "title": "2012 Summer Olympics Men's 20km Walk",
-                    "text": "The men's 20 kilometres walk at the 2012 Summer Olympics in London was held on 4 August. The event was won by Chen Ding of China with a time of 1:18:46, setting a new Olympic record. Zhen Wang of China won silver, and Erick Barrondo of Guatemala won bronze, marking Guatemala's first Olympic medal in athletics.",
-                    "url": ""
+                    "doc_id": "Q1050909",
+                    "title": "Athletics at the 2012 Summer Olympics – Men's 20 kilometres walk",
+                    "url": "https://en.wikipedia.org/wiki/Athletics_at_the_2012_Summer_Olympics_%E2%80%93_Men%27s_20_kilometres_walk",
+                    "text": "The men's 20 kilometres race walk at the 2012 Summer Olympics in London took place on 4 August on a route along The Mall and Constitution Hill in central London. Chen Ding of China won the gold medal with a time of 1:18:46, setting a new Olympic record. Erick Barrondo of Guatemala won silver, and Wang Zhen of China won bronze. This was the first Olympic medal for Guatemala in athletics."
                 },
                 {
-                    "doc_id": "sample_2", 
-                    "title": "2016 Summer Olympics Men's 20km Walk",
-                    "text": "The men's 20 kilometres walk at the 2016 Summer Olympics in Rio de Janeiro was held on 12 August. The event was won by Wang Zhen of China with a time of 1:19:14. Cai Zelin of China won silver, and Dane Bird-Smith of Australia won bronze.",
-                    "url": ""
+                    "doc_id": "Q26233122",
+                    "title": "Athletics at the 2016 Summer Olympics – Men's 20 kilometres walk",
+                    "url": "https://en.wikipedia.org/wiki/Athletics_at_the_2016_Summer_Olympics_%E2%80%93_Men%27s_20_kilometres_walk",
+                    "text": "The men's 20 kilometres race walk at the 2016 Summer Olympics in Rio de Janeiro took place on 12 August on a route along Pontal. Wang Zhen of China won the gold medal with a time of 1:19:14. Cai Zelin of China won silver, and Dane Bird-Smith of Australia won bronze. The defending 2012 Olympic champion Chen Ding had been defeated in national competition by Wang Zhen."
                 },
                 {
                     "doc_id": "sample_3",
