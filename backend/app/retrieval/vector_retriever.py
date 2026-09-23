@@ -248,10 +248,13 @@ class VectorRetriever:
             True if initialization was successful, False otherwise
         """
         try:
+            # Declare global variables at the start to avoid scoping errors
+            global _initialized, _documents, _metadatas, _ids
+            global _tfidf_vectorizer, _tfidf_matrix
+            
             self._ensure_initialized()
             
             # Check if already loaded in shared data
-            global _initialized
             if _initialized and len(_documents) > 0:
                 logger.info(f"TF-IDF index already has {len(_documents)} chunks - using existing index")
                 return True
@@ -259,8 +262,6 @@ class VectorRetriever:
             logger.info("Initializing production corpus")
             
             # Clear existing data for fresh load
-            global _documents, _metadatas, _ids
-            global _tfidf_vectorizer, _tfidf_matrix
             _documents.clear()
             _metadatas.clear()
             _ids.clear()
