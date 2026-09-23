@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from app.models.schemas import HealthResponse
 from app.core.config import settings
 from app.retrieval.vector_retriever import VectorRetriever
+from pathlib import Path
 import logging
 
 logger = logging.getLogger(__name__)
@@ -218,7 +219,6 @@ async def test_fallback():
 async def health_debug():
     """Debug endpoint to check corpus file availability and vector DB status."""
     try:
-        from pathlib import Path
         import os
         
         # Check corpus file locations
