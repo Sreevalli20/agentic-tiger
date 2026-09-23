@@ -33,14 +33,14 @@ async def lifespan(app: FastAPI):
                     final_stats = retriever.get_collection_stats()
                     logger.info(f"Production corpus initialized with {final_stats.get('document_count', 0)} chunks")
                 else:
-                    logger.warning("Failed to initialize production corpus, will retry on health check")
+                    logger.warning("Failed to initialize production corpus during startup, will retry on health check")
             else:
                 logger.info(f"Production mode: Vector DB has {stats.get('document_count', 0)} chunks")
         else:
             logger.info("Development mode: skipping automatic corpus initialization")
     except Exception as e:
-        logger.error(f"Failed to check/initialize vector DB status: {e}")
-        # Don't fail startup - corpus can be loaded later
+        logger.error(f"Failed to check/initialize vector DB status during startup: {e}")
+        # Don't fail startup - corpus can be loaded later via health check
     
     yield
     logger.info("Shutting down GraphProbe AI backend...")
