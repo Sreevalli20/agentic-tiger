@@ -107,6 +107,36 @@ async def force_initialize():
         }
 
 
+@router.get("/health/test-fallback")
+async def test_fallback():
+    """Test fallback corpus creation by forcing it.
+    
+    Returns:
+        Initialization status and statistics
+    """
+    try:
+        retriever = VectorRetriever()
+        retriever._ensure_initialized()
+        retriever._ensure_embedding_model()
+        
+        logger.info("Testing fallback corpus creation")
+        success = retriever._create_fallback_corpus(max_docs=10)
+        final_stats = retriever.get_collection_stats()
+        
+        return {
+            "success": success,
+            "vector_db": final_stats,
+            "message": "Fallback corpus created" if success else "Fallback creation failed"
+        }
+    except Exception as e:
+        logger.error(f"Failed to create fallback corpus: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "message": "Fallback creation failed"
+        }
+
+
 @router.get("/health/debug")
 async def health_debug():
     """Debug endpoint to check corpus file availability and vector DB status."""
