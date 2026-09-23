@@ -31,9 +31,9 @@ async def health_check():
         if settings.production_mode and actual_stats.get('document_count', 0) == 0:
             logger.info("Production mode: Vector DB empty, initializing with fallback corpus")
             try:
-                retriever._create_fallback_corpus(max_docs=40)
+                success = retriever._create_fallback_corpus(max_docs=40)
                 actual_stats = retriever.get_collection_stats()
-                logger.info(f"After fallback initialization: {actual_stats}")
+                logger.info(f"After fallback initialization (success={success}): {actual_stats}")
             except Exception as init_error:
                 logger.error(f"Fallback initialization failed: {init_error}")
                 # Still try to return current stats even if init failed
