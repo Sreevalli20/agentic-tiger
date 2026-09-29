@@ -10,15 +10,10 @@ export default defineConfig(({ mode }) => {
       port: 3000,
       proxy: {
         '/api': {
-          target: env.VITE_API_BASE_URL || 'http://localhost:8000',
+          target: env.VITE_API_URL || 'http://localhost:8000',
           changeOrigin: true,
         }
       }
-    },
-    define: {
-      'import.meta.env.VITE_API_BASE_URL': JSON.stringify(
-        env.VITE_API_BASE_URL || (mode === 'production' ? 'https://graphprobe-ai-backend.onrender.com' : 'http://localhost:8000')
-      )
     },
     build: {
       rollupOptions: {

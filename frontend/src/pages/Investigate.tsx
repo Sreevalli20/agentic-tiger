@@ -96,30 +96,7 @@ export default function Investigate() {
         </div>
       </div>
 
-      {/* Live Progress for Agentic */}
-      {isLoading && pipeline === 'agentic' && (
-        <div className="glass-panel p-6">
-          <h3 className="text-lg font-semibold text-gray-100 mb-4">Agentic Investigation Progress</h3>
-          <div className="space-y-3">
-            <div className="flex items-center space-x-3">
-              <div className="h-2 w-2 rounded-full bg-cyan-400 animate-pulse"></div>
-              <span className="text-sm text-gray-400">Analyzing question...</span>
-            </div>
-            <div className="flex items-center space-x-3">
-              <div className="h-2 w-2 rounded-full bg-navy-600"></div>
-              <span className="text-sm text-gray-500">Selecting retrieval method...</span>
-            </div>
-            <div className="flex items-center space-x-3">
-              <div className="h-2 w-2 rounded-full bg-navy-600"></div>
-              <span className="text-sm text-gray-500">Retrieving evidence...</span>
-            </div>
-            <div className="flex items-center space-x-3">
-              <div className="h-2 w-2 rounded-full bg-navy-600"></div>
-              <span className="text-sm text-gray-500">Evaluating evidence...</span>
-            </div>
-          </div>
-        </div>
-      )}
+
 
       {/* Error */}
       {error && (
