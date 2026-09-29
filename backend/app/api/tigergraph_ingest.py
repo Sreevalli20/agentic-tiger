@@ -36,8 +36,12 @@ async def run_tigergraph_ingestion(force: bool = False):
         # Try multiple possible locations for the corpus file
         backend_dir = Path(__file__).parent.parent
         
-        # Try corpus in backend directory first
-        corpus_path = backend_dir / "corpus_production.jsonl"
+        # Try corpus in backend/app directory first (where it actually is in Git)
+        corpus_path = backend_dir / "app" / "corpus_production.jsonl"
+        
+        # If not found, try in backend directory
+        if not corpus_path.exists():
+            corpus_path = backend_dir / "corpus_production.jsonl"
         
         # If not found, try in parent directory (for development)
         if not corpus_path.exists():
