@@ -28,9 +28,9 @@ async def run_tigergraph_ingestion():
                 detail="TigerGraph credentials not configured. TG_SECRET environment variable is required."
             )
         
-        # Paths to hackathon resources
-        project_root = Path(__file__).parent.parent.parent.parent
-        corpus_path = project_root / "hackathon-resources" / "corpus" / "corpus.jsonl"
+        # Paths to corpus - use production corpus in backend directory
+        project_root = Path(__file__).parent.parent.parent
+        corpus_path = project_root / "corpus_production.jsonl"
         questions_path = project_root / "hackathon-resources" / "questions"
         
         # Verify corpus exists
