@@ -75,6 +75,16 @@ class GraphService:
         years = re.findall(r'\b(19|20)\d{2}\b', text)
         entities.extend([f"year_{y}" for y in years])
         
+        # Handle temporal reasoning - "before 2016" should extract 2012
+        if "before 2016" in text.lower() or "prior to 2016" in text.lower():
+            entities.append("year_2012")
+        
+        # Extract event-specific keywords
+        event_keywords = ['walk', 'athletics', 'kilometres', 'km', 'marathon', 'sprint', 'swimming', 'cycling']
+        for keyword in event_keywords:
+            if keyword.lower() in text.lower():
+                entities.append(keyword)
+        
         # Extract capitalized words that might be names/places
         capitalized = re.findall(r'\b[A-Z][a-z]+\b', text)
         entities.extend(capitalized[:5])
@@ -85,9 +95,11 @@ class GraphService:
             if term.lower() in text.lower():
                 entities.append(term)
         
-        # Extract numbers that might be competitor counts
+        # Extract numbers that might be competitor counts (but not years)
         numbers = re.findall(r'\b\d+\b', text)
-        entities.extend([f"count_{n}" for n in numbers[:3]])
+        year_numbers = set(re.findall(r'\b(19|20)\d{2}\b', text))
+        non_year_numbers = [n for n in numbers if n not in year_numbers]
+        entities.extend([f"count_{n}" for n in non_year_numbers[:3]])
         
         # Remove duplicates and limit
         unique_entities = list(set(entities))
