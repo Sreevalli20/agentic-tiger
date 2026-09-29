@@ -34,7 +34,11 @@ class Settings(BaseSettings):
         "http://localhost:3000",
         "http://localhost:5173",
         "https://frontend-81rdtgomo-siris-projects-3809a50.vercel.app",
-        "https://frontend-bcehleew3-siris-projects-3809a50c.vercel.app"
+        "https://frontend-bcehleew3-siris-projects-3809a50c.vercel.app",
+        "https://frontend-jdmw8kj8a-siris-projects-3809a50.vercel.app",
+        "https://frontend-eqzjr0em9-siris-projects-3809a50c.vercel.app",
+        "https://frontend-et7fx5ith-siris-projects-3809a50c.vercel.app",
+        "https://frontend-k8nalx10n-siris-projects-3809a50c.vercel.app"
     ]
     
     # Data Configuration
