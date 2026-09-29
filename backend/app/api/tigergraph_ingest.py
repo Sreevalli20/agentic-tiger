@@ -32,20 +32,20 @@ async def run_tigergraph_ingestion(force: bool = False):
             )
         
         # Paths to corpus - use production corpus in backend directory
-        # In Render, the working directory is /app (Docker WORKDIR = backend/)
-        # The Dockerfile copies corpus to both /app/corpus_production.jsonl and /app/app/corpus_production.jsonl
+        # In Render Python runtime, the working directory is /opt/render/project/backend
+        # The corpus file should be at backend/corpus_production.jsonl
         # Try multiple possible locations for the corpus file
         backend_dir = Path(__file__).parent.parent
         
         logger.info(f"Current working directory: {Path.cwd()}")
         logger.info(f"Backend directory: {backend_dir}")
-        logger.info(f"Files in backend_dir: {list(backend_dir.iterdir())}")
+        logger.info(f"Script location: {__file__}")
         
-        # Try corpus in backend directory first (Dockerfile copies it here)
+        # Try corpus in backend directory first (primary location)
         corpus_path = backend_dir / "corpus_production.jsonl"
         logger.info(f"Checking path 1: {corpus_path}, exists: {corpus_path.exists()}")
         
-        # If not found, try in backend/app directory (Git location, also copied by Dockerfile)
+        # If not found, try in backend/app directory (Git location)
         if not corpus_path.exists():
             corpus_path = backend_dir / "app" / "corpus_production.jsonl"
             logger.info(f"Checking path 2: {corpus_path}, exists: {corpus_path.exists()}")
@@ -64,6 +64,11 @@ async def run_tigergraph_ingestion(force: bool = False):
         if not corpus_path.exists():
             corpus_path = backend_dir.parent.parent / "corpus_production.jsonl"
             logger.info(f"Checking path 5: {corpus_path}, exists: {corpus_path.exists()}")
+        
+        # Final fallback: try absolute path from environment variable
+        if not corpus_path.exists() and settings.production_corpus_path:
+            corpus_path = Path(settings.production_corpus_path)
+            logger.info(f"Checking path 6 (from env): {corpus_path}, exists: {corpus_path.exists()}")
         
         questions_path = backend_dir.parent / "hackathon-resources" / "questions"
         

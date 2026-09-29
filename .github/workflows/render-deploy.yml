@@ -6,6 +6,7 @@ on:
     paths:
       - 'backend/**'
       - 'render.yaml'
+      - 'corpus_production.jsonl'
 
 jobs:
   deploy:

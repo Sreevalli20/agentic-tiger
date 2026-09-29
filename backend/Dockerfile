@@ -15,12 +15,16 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code (dockerContext is ., so we're in backend/ directory)
+# Copy application code
 COPY . .
 
-# Copy corpus file from app directory to backend root (ensures it's available at both locations)
-COPY app/corpus_production.jsonl ./corpus_production.jsonl
-COPY app/corpus_production.jsonl ./app/corpus_production.jsonl
+# Ensure corpus file exists at expected locations
+# The corpus should be at backend/corpus_production.jsonl in the repo
+RUN if [ -f app/corpus_production.jsonl ]; then \
+      cp app/corpus_production.jsonl corpus_production.jsonl; \
+    elif [ -f corpus_production.jsonl ]; then \
+      cp corpus_production.jsonl app/corpus_production.jsonl; \
+    fi
 
 # Create necessary directories
 RUN mkdir -p data

@@ -6,20 +6,27 @@ services:
     rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
-    # Trigger rebuild for corpus initialization
     envVars:
       - key: PORT
         sync: false
       - key: TG_HOST
         sync: false
+      - key: TG_PORT
+        value: "14240"
       - key: TG_SECRET
         sync: false
       - key: TG_GRAPHNAME
         value: Transaction_Fraud
       - key: GOOGLE_API_KEY
         sync: false
+      - key: LLM_PROVIDER
+        value: google
+      - key: LLM_MODEL
+        value: gemini-1.5-flash
       - key: PRODUCTION_MODE
         value: "true"
+      - key: PRODUCTION_CORPUS_PATH
+        value: ./corpus_production.jsonl
       - key: PRODUCTION_MAX_DOCS
         value: "40"
       - key: MAX_AGENT_ITERATIONS

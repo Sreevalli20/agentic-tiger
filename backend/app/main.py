@@ -15,9 +15,51 @@ async def lifespan(app: FastAPI):
     """Application lifespan manager."""
     logger.info("Starting GraphProbe AI backend...")
     
-    # Skip all initialization on startup to ensure fast startup
-    # Vector DB and TigerGraph will be initialized on first request
-    logger.info("Skipping automatic initialization - will initialize on first request")
+    # Initialize TigerGraph automatically on startup if credentials are available
+    try:
+        if settings.tg_secret:
+            logger.info("TigerGraph credentials found - attempting automatic initialization")
+            from app.tigergraph.graph_service import GraphService
+            graph_service = GraphService()
+            
+            # Try to initialize graph if needed (idempotent)
+            if graph_service.conn:
+                logger.info("TigerGraph connection established - checking graph status")
+                try:
+                    from pathlib import Path
+                    backend_dir = Path(__file__).parent.parent
+                    
+                    # Try multiple corpus paths for deployment flexibility
+                    corpus_paths = [
+                        backend_dir / "corpus_production.jsonl",
+                        backend_dir / "app" / "corpus_production.jsonl",
+                        Path.cwd() / "corpus_production.jsonl",
+                    ]
+                    
+                    corpus_path = None
+                    for path in corpus_paths:
+                        if path.exists():
+                            corpus_path = str(path)
+                            logger.info(f"Found corpus at: {corpus_path}")
+                            break
+                    
+                    if corpus_path:
+                        logger.info(f"Initializing TigerGraph with corpus: {corpus_path}")
+                        initialized = await graph_service.initialize_graph_if_needed(corpus_path)
+                        if initialized:
+                            logger.info("TigerGraph initialization completed successfully")
+                        else:
+                            logger.warning("TigerGraph initialization failed - will retry on first request")
+                    else:
+                        logger.warning("Corpus file not found - TigerGraph will initialize on first request")
+                except Exception as init_error:
+                    logger.warning(f"TigerGraph initialization failed: {init_error} - will retry on first request")
+            else:
+                logger.info("TigerGraph connection not available - will initialize on first request")
+        else:
+            logger.info("TigerGraph credentials not configured - skipping automatic initialization")
+    except Exception as e:
+        logger.warning(f"TigerGraph auto-initialization error: {e} - will continue without it")
     
     yield
     logger.info("Shutting down GraphProbe AI backend...")
