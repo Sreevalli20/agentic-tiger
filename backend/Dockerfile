@@ -23,6 +23,7 @@ COPY app/corpus_production.jsonl ./corpus_production.jsonl
 
 # Verify corpus file exists
 RUN ls -la corpus_production.jsonl || echo "corpus_production.jsonl not found in /app"
+RUN echo "Files in /app:" && ls -la /app
 
 # Create necessary directories
 RUN mkdir -p data

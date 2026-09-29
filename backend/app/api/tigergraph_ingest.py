@@ -37,20 +37,28 @@ async def run_tigergraph_ingestion(force: bool = False):
         # Try multiple possible locations for the corpus file
         backend_dir = Path(__file__).parent.parent
         
+        logger.info(f"Current working directory: {Path.cwd()}")
+        logger.info(f"Backend directory: {backend_dir}")
+        logger.info(f"Files in backend_dir: {list(backend_dir.iterdir())}")
+        
         # Try corpus in backend directory first (Dockerfile copies it here)
         corpus_path = backend_dir / "corpus_production.jsonl"
+        logger.info(f"Checking path 1: {corpus_path}, exists: {corpus_path.exists()}")
         
         # If not found, try in backend/app directory (Git location)
         if not corpus_path.exists():
             corpus_path = backend_dir / "app" / "corpus_production.jsonl"
+            logger.info(f"Checking path 2: {corpus_path}, exists: {corpus_path.exists()}")
         
         # If not found, try in parent directory (for development)
         if not corpus_path.exists():
             corpus_path = backend_dir.parent / "corpus_production.jsonl"
+            logger.info(f"Checking path 3: {corpus_path}, exists: {corpus_path.exists()}")
         
         # If still not found, try in project root
         if not corpus_path.exists():
             corpus_path = backend_dir.parent.parent / "corpus_production.jsonl"
+            logger.info(f"Checking path 4: {corpus_path}, exists: {corpus_path.exists()}")
         
         questions_path = backend_dir.parent / "hackathon-resources" / "questions"
         
