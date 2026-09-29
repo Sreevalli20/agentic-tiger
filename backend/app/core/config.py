@@ -43,10 +43,10 @@ class Settings(BaseSettings):
     top_k_retrieval: int = 5
     
     # Agent Configuration
-    max_agent_iterations: int = 3
+    max_agent_iterations: int = 10
     evidence_sufficiency_threshold: float = 0.8
     max_token_budget: int = 10000
-    agentic_timeout_seconds: int = 45
+    agentic_timeout_seconds: int = 60
     operation_timeout_seconds: int = 15
     
     # Benchmark Configuration

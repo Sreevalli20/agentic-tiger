@@ -172,6 +172,18 @@ class AgentOrchestrator:
         elif state.iteration == 2:
             # Second step: always do graph traversal
             return ToolType.GRAPH_TRAVERSE
+        elif ToolType.GRAPH_TRAVERSE not in state.tools_used:
+            # Haven't done graph traversal yet: do it now
+            return ToolType.GRAPH_TRAVERSE
+        elif ToolType.VECTOR_SEARCH not in state.tools_used:
+            # Haven't done vector search yet: do it now
+            return ToolType.VECTOR_SEARCH
+        elif ToolType.EVALUATE_EVIDENCE not in state.tools_used:
+            # Haven't evaluated evidence yet: do it now
+            return ToolType.EVALUATE_EVIDENCE
+        elif ToolType.VERIFY not in state.tools_used:
+            # Haven't verified yet: do it now
+            return ToolType.VERIFY
         elif not state.graph_entities:
             # No entities yet: extract them
             return ToolType.ENTITY_LINK
@@ -192,6 +204,8 @@ class AgentOrchestrator:
             return await self._action_vector_search(state)
         elif action == ToolType.EVALUATE_EVIDENCE:
             return await self._action_evaluate_evidence(state)
+        elif action == ToolType.VERIFY:
+            return await self._action_verify(state)
         else:
             return {"summary": f"Action {action} not implemented yet", "tokens": 0}
     
@@ -211,21 +225,13 @@ class AgentOrchestrator:
         state.graph_relationships = graph_context.relationships
         state.tools_used.append(ToolType.GRAPH_TRAVERSE)
         
-        # If graph traversal returned no results, create hybrid relationships from entities
-        if not graph_context.relationships and state.graph_entities:
-            logger.info("Graph traversal returned no results - creating hybrid relationships from entities")
-            for i, entity in enumerate(state.graph_entities):
-                graph_context.relationships.append({
-                    "source": entity,
-                    "target": f"related_entity_{i}",
-                    "type": "ENTITY_RELATIONSHIP",
-                    "weight": 0.7
-                })
-            graph_context.nodes_visited = len(state.graph_entities)
-            graph_context.edges_traversed = len(state.graph_entities)
+        # Do NOT create fake relationships - use actual graph results only
+        if not graph_context.relationships:
+            logger.warning(f"Graph traversal returned zero results with entities: {state.graph_entities}")
+            logger.warning("This indicates a TigerGraph connection or query issue - NOT creating fake relationships")
         
         return {
-            "summary": f"Traversed graph: {graph_context.nodes_visited} nodes, {graph_context.edges_traversed} edges",
+            "summary": f"Traversed graph: {graph_context.nodes_visited} nodes, {graph_context.edges_traversed} edges, {len(graph_context.relationships)} relationships",
             "tokens": 0
         }
     
@@ -272,6 +278,29 @@ class AgentOrchestrator:
         
         return {
             "summary": f"Evidence sufficiency: {state.confidence:.2f} (sufficient={evidence_sufficient})",
+            "tokens": 0
+        }
+    
+    async def _action_verify(self, state: AgentState) -> Dict[str, Any]:
+        """Verify the collected evidence and prepare final answer."""
+        # Verify that we have both graph and vector evidence
+        has_graph_evidence = ToolType.GRAPH_TRAVERSE in state.tools_used and state.graph_relationships
+        has_vector_evidence = ToolType.VECTOR_SEARCH in state.tools_used and state.evidence
+        
+        if has_graph_evidence and has_vector_evidence:
+            state.confidence = 1.0
+            verification_status = "VERIFIED: Both graph and vector evidence collected"
+        elif has_vector_evidence:
+            state.confidence = 0.7
+            verification_status = "PARTIAL: Vector evidence only (graph traversal returned no data)"
+        else:
+            state.confidence = 0.3
+            verification_status = "INSUFFICIENT: No evidence collected"
+        
+        state.tools_used.append(ToolType.VERIFY)
+        
+        return {
+            "summary": f"Verification: {verification_status}, confidence: {state.confidence:.2f}",
             "tokens": 0
         }
     
@@ -324,13 +353,12 @@ class AgentOrchestrator:
     
     async def _should_stop(self, state: AgentState) -> tuple[bool, str]:
         """Determine if agent should stop with explicit criteria."""
-        # Only stop if we've done graph traversal
-        if ToolType.GRAPH_TRAVERSE not in state.tools_used:
-            return False, ""
+        # Must have completed the full pipeline: ENTITY_LINK -> GRAPH_TRAVERSE -> VECTOR_SEARCH -> EVALUATE_EVIDENCE -> VERIFY
+        required_tools = [ToolType.ENTITY_LINK, ToolType.GRAPH_TRAVERSE, ToolType.VECTOR_SEARCH, ToolType.EVALUATE_EVIDENCE, ToolType.VERIFY]
+        missing_tools = [tool for tool in required_tools if tool not in state.tools_used]
         
-        # Check explicit evidence sufficiency first
-        if self._check_evidence_sufficiency(state):
-            return True, "Sufficient evidence collected with explicit criteria"
+        if missing_tools:
+            return False, f"Missing required tools: {missing_tools}"
         
         # Stop if max iterations reached
         if state.iteration >= settings.max_agent_iterations:
@@ -340,8 +368,8 @@ class AgentOrchestrator:
         if state.tokens_used >= settings.max_token_budget:
             return True, f"Token budget ({settings.max_token_budget}) exceeded"
         
-        # Continue investigation
-        return False, ""
+        # All required tools completed - stop
+        return True, "All required tools completed (ENTITY_LINK -> GRAPH_TRAVERSE -> VECTOR_SEARCH -> EVALUATE_EVIDENCE -> VERIFY)"
     
     def track_time(self, start_time: float) -> float:
         """Calculate elapsed time in milliseconds."""
