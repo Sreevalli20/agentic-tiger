@@ -169,12 +169,12 @@ class AgentOrchestrator:
         if state.iteration == 1:
             # First step: extract entities
             return ToolType.ENTITY_LINK
+        elif state.iteration == 2:
+            # Second step: always do graph traversal
+            return ToolType.GRAPH_TRAVERSE
         elif not state.graph_entities:
             # No entities yet: extract them
             return ToolType.ENTITY_LINK
-        elif ToolType.GRAPH_TRAVERSE not in state.tools_used:
-            # Haven't traversed graph yet: do graph traversal (iteration 2)
-            return ToolType.GRAPH_TRAVERSE
         elif len(state.evidence) < 3:
             # Need more evidence: vector search
             return ToolType.VECTOR_SEARCH
