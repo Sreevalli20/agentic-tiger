@@ -169,6 +169,18 @@ class GraphService:
                 timeout=settings.operation_timeout_seconds
             )
             logger.info(f"Connected to graph with async schema: {len(schema.get('VertexTypes', []))} vertex types")
+            logger.info(f"Vertex types: {[vt['Name'] for vt in schema.get('VertexTypes', [])]}")
+            logger.info(f"Edge types: {[et['Name'] for et in schema.get('EdgeTypes', [])]}")
+            
+            # Check if graph has any data
+            try:
+                vertex_counts = await asyncio.wait_for(
+                    self.async_conn.getVertexCount('*'),
+                    timeout=5.0
+                )
+                logger.info(f"Vertex counts: {vertex_counts}")
+            except Exception as count_error:
+                logger.warning(f"Failed to get vertex counts: {count_error}")
             
             # Try to run Olympic-specific queries based on entities
             relationships = []
@@ -288,6 +300,18 @@ class GraphService:
                 timeout=settings.operation_timeout_seconds
             )
             logger.info(f"Connected to graph with sync schema: {len(schema.get('VertexTypes', []))} vertex types")
+            logger.info(f"Vertex types: {[vt['Name'] for vt in schema.get('VertexTypes', [])]}")
+            logger.info(f"Edge types: {[et['Name'] for et in schema.get('EdgeTypes', [])]}")
+            
+            # Check if graph has any data
+            try:
+                vertex_counts = await asyncio.wait_for(
+                    asyncio.to_thread(self.conn.getVertexCount, '*'),
+                    timeout=5.0
+                )
+                logger.info(f"Vertex counts: {vertex_counts}")
+            except Exception as count_error:
+                logger.warning(f"Failed to get vertex counts: {count_error}")
             
             relationships = []
             nodes_visited = 0
