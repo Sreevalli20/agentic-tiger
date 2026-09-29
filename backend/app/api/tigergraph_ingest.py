@@ -11,7 +11,7 @@ router = APIRouter()
 
 
 @router.post("/tigergraph/ingest")
-async def run_tigergraph_ingestion(force: bool = False):
+async def run_tigergraph_ingest(force: bool = False):
     """Execute TigerGraph schema creation and data ingestion.
     
     This endpoint is for one-time production deployment to:
@@ -92,8 +92,18 @@ async def run_tigergraph_ingestion(force: bool = False):
                 detail="Failed to connect to TigerGraph. Check TG_HOST and TG_SECRET configuration."
             )
         
-        # Run full ingestion
-        results = ingestion.run_full_ingestion(str(corpus_path), str(questions_path))
+        # Run ingestion in background thread to avoid timeout
+        import asyncio
+        loop = asyncio.get_event_loop()
+        
+        def run_ingestion_sync():
+            return ingestion.run_full_ingestion(str(corpus_path), str(questions_path))
+        
+        # Run with extended timeout
+        results = await asyncio.wait_for(
+            loop.run_in_executor(None, run_ingestion_sync),
+            timeout=300.0  # 5 minutes timeout
+        )
         
         logger.info(f"TigerGraph ingestion completed: {results['status']}")
         
@@ -108,6 +118,9 @@ async def run_tigergraph_ingestion(force: bool = False):
         
     except HTTPException:
         raise
+    except asyncio.TimeoutError:
+        logger.error("TigerGraph ingestion timed out after 5 minutes")
+        raise HTTPException(status_code=504, detail="Ingestion timed out. The operation is taking too long.")
     except Exception as e:
         logger.error(f"TigerGraph ingestion failed: {e}")
         raise HTTPException(status_code=500, detail=f"Ingestion failed: {str(e)}")
