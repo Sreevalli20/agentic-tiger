@@ -248,8 +248,8 @@ class AgentOrchestrator:
             state.confidence = 1.0
             state.stopping_reason = "Sufficient evidence collected with explicit criteria"
         else:
-            # Calculate evidence sufficiency score
-            evidence_score = min(1.0, len(state.evidence) / 5.0)
+            # Calculate evidence sufficiency score (but don't set high confidence without graph traversal)
+            evidence_score = min(0.5, len(state.evidence) / 5.0)  # Cap at 0.5 until graph traversal
             state.confidence = evidence_score
             if evidence_score < settings.evidence_sufficiency_threshold:
                 state.missing_information.append("Need more supporting evidence")
@@ -317,10 +317,6 @@ class AgentOrchestrator:
         # Check explicit evidence sufficiency first
         if self._check_evidence_sufficiency(state):
             return True, "Sufficient evidence collected with explicit criteria"
-        
-        # Stop if evidence is sufficient via confidence threshold
-        if state.confidence >= settings.evidence_sufficiency_threshold:
-            return True, f"Evidence sufficiency ({state.confidence:.2f}) meets threshold ({settings.evidence_sufficiency_threshold})"
         
         # Stop if max iterations reached
         if state.iteration >= settings.max_agent_iterations:
