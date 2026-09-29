@@ -11,7 +11,7 @@ router = APIRouter()
 
 
 @router.post("/tigergraph/ingest")
-async def run_tigergraph_ingestion():
+async def run_tigergraph_ingestion(force: bool = False):
     """Execute TigerGraph schema creation and data ingestion.
     
     This endpoint is for one-time production deployment to:
@@ -19,6 +19,9 @@ async def run_tigergraph_ingestion():
     2. Ingest Olympic corpus data into TigerGraph
     
     Requires TG_SECRET to be configured in environment variables.
+    
+    Args:
+        force: If True, force re-ingestion even if graph has data
     """
     try:
         # Check if TigerGraph credentials are available
@@ -41,10 +44,11 @@ async def run_tigergraph_ingestion():
                 detail=f"Corpus file not found: {corpus_path}"
             )
         
-        logger.info(f"Starting TigerGraph ingestion from {corpus_path}")
+        logger.info(f"Starting TigerGraph ingestion from {corpus_path} (force={force})")
         
         # Initialize ingestion pipeline
         ingestion = TigerGraphIngestion()
+        ingestion.force_reingestion = force
         
         # Check connection
         if not ingestion.conn:

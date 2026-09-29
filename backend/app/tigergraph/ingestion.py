@@ -17,6 +17,7 @@ class TigerGraphIngestion:
         """Initialize ingestion pipeline."""
         self.conn = None
         self.parser = None
+        self.force_reingestion = False
         self._initialize_connection()
     
     def _initialize_connection(self):
@@ -549,27 +550,30 @@ class TigerGraphIngestion:
             
             results['steps']['create_schema'] = 'completed'
             
-            # Step 3: Check if graph already has data
-            try:
-                vertex_counts = self.conn.getVertexCount('*')
-                total_vertices = sum(vertex_counts.values()) if vertex_counts else 0
-                logger.info(f"Current vertex counts: {vertex_counts}, Total: {total_vertices}")
-                
-                # If graph already has substantial data, skip re-ingestion
-                if total_vertices > 100:
-                    logger.info(f"Graph already has {total_vertices} vertices - skipping data ingestion")
-                    results['status'] = 'skipped'
-                    results['message'] = 'Graph already contains data'
-                    results['vertex_counts'] = vertex_counts
-                    try:
-                        edge_counts = self.conn.getEdgeCount('*')
-                        results['edge_counts'] = edge_counts
-                    except:
-                        pass
-                    results['duration_seconds'] = time.time() - start_time
-                    return results
-            except Exception as count_error:
-                logger.warning(f"Failed to check existing vertex counts: {count_error}")
+            # Step 3: Check if graph already has data (unless force reingestion)
+            if not self.force_reingestion:
+                try:
+                    vertex_counts = self.conn.getVertexCount('*')
+                    total_vertices = sum(vertex_counts.values()) if vertex_counts else 0
+                    logger.info(f"Current vertex counts: {vertex_counts}, Total: {total_vertices}")
+                    
+                    # If graph already has substantial data, skip re-ingestion
+                    if total_vertices > 100:
+                        logger.info(f"Graph already has {total_vertices} vertices - skipping data ingestion")
+                        results['status'] = 'skipped'
+                        results['message'] = 'Graph already contains data'
+                        results['vertex_counts'] = vertex_counts
+                        try:
+                            edge_counts = self.conn.getEdgeCount('*')
+                            results['edge_counts'] = edge_counts
+                        except:
+                            pass
+                        results['duration_seconds'] = time.time() - start_time
+                        return results
+                except Exception as count_error:
+                    logger.warning(f"Failed to check existing vertex counts: {count_error}")
+            else:
+                logger.info("Force reingestion enabled - skipping data check")
             
             # Step 4: Ingest vertices
             results['steps']['ingest_documents'] = self.ingest_documents()

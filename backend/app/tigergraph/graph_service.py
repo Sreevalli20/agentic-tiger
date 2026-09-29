@@ -182,6 +182,7 @@ class GraphService:
                 total_vertices = sum(vertex_counts.values()) if vertex_counts else 0
                 if total_vertices == 0:
                     logger.warning("Graph is empty - no data to traverse")
+                    logger.info("This indicates the TigerGraph graph needs to be populated with data")
                     return GraphContext(
                         entities=entities,
                         relationships=[],
@@ -380,6 +381,7 @@ class GraphService:
                 total_vertices = sum(vertex_counts.values()) if vertex_counts else 0
                 if total_vertices == 0:
                     logger.warning("Graph is empty - no data to traverse")
+                    logger.info("This indicates the TigerGraph graph needs to be populated with data")
                     return GraphContext(
                         entities=entities,
                         relationships=[],
@@ -595,6 +597,8 @@ class GraphService:
                     total_vertices = sum(vertex_counts.values()) if vertex_counts else 0
                     if total_vertices == 0:
                         logger.warning("Graph exists but is empty - reinitializing")
+                    elif total_vertices < 50:
+                        logger.warning(f"Graph has only {total_vertices} vertices - reinitializing to ensure full corpus")
                     else:
                         logger.info(f"Graph has {total_vertices} vertices - skipping initialization")
                         return True
