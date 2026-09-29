@@ -32,16 +32,17 @@ async def run_tigergraph_ingestion(force: bool = False):
             )
         
         # Paths to corpus - use production corpus in backend directory
-        # In Render, the backend directory is the working directory
+        # In Render, the working directory is /app (backend directory)
+        # The Dockerfile copies corpus to /app/corpus_production.jsonl
         # Try multiple possible locations for the corpus file
         backend_dir = Path(__file__).parent.parent
         
-        # Try corpus in backend/app directory first (where it actually is in Git)
-        corpus_path = backend_dir / "app" / "corpus_production.jsonl"
+        # Try corpus in backend directory first (Dockerfile copies it here)
+        corpus_path = backend_dir / "corpus_production.jsonl"
         
-        # If not found, try in backend directory
+        # If not found, try in backend/app directory (Git location)
         if not corpus_path.exists():
-            corpus_path = backend_dir / "corpus_production.jsonl"
+            corpus_path = backend_dir / "app" / "corpus_production.jsonl"
         
         # If not found, try in parent directory (for development)
         if not corpus_path.exists():
