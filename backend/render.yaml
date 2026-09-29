@@ -49,6 +49,6 @@ services:
       - key: PRODUCTION_MODE
         value: "true"
       - key: PRODUCTION_CORPUS_PATH
-        value: ./corpus_production.jsonl
+        value: ./app/corpus_production.jsonl
       - key: PRODUCTION_MAX_DOCS
         value: "40"
