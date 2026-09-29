@@ -180,16 +180,8 @@ class AgentOrchestrator:
         elif len(state.evidence) < 3:
             # Need more evidence: vector search
             return ToolType.VECTOR_SEARCH
-        elif not state.graph_relationships and state.iteration <= 2:
-            # Have entities but no relationships: try graph traversal (limited attempts)
-            # But skip if we already have good evidence from vector search
-            if state.evidence and any(ev.metadata.confidence > 0.3 for ev in state.evidence):
-                # Skip graph traversal if we already have reasonable evidence
-                logger.info(f"Skipping graph traversal - have evidence with confidence > 0.3")
-                return ToolType.EVALUATE_EVIDENCE
-            return ToolType.GRAPH_TRAVERSE
         else:
-            # Have evidence and graph (or max graph attempts): evaluate if sufficient
+            # Have evidence - evaluate if sufficient
             return ToolType.EVALUATE_EVIDENCE
     
     async def _execute_action(self, state: AgentState, action: ToolType) -> Dict[str, Any]:
