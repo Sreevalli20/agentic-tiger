@@ -180,11 +180,8 @@ class AgentOrchestrator:
         elif len(state.evidence) < 3:
             # Need more evidence: vector search
             return ToolType.VECTOR_SEARCH
-        elif state.iteration == 2 and len(state.evidence) >= 3:
-            # Have evidence from vector search - evaluate instead of graph traversal
-            return ToolType.EVALUATE_EVIDENCE
         else:
-            # Have evidence - evaluate if sufficient
+            # Have evidence - evaluate if sufficient (skip graph traversal)
             return ToolType.EVALUATE_EVIDENCE
     
     async def _execute_action(self, state: AgentState, action: ToolType) -> Dict[str, Any]:
