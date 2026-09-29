@@ -618,7 +618,16 @@ class GraphService:
             # Determine corpus path
             if corpus_path is None:
                 backend_dir = Path(__file__).parent.parent
-                corpus_path = str(backend_dir / "corpus_production.jsonl")
+                corpus_path = backend_dir / "corpus_production.jsonl"
+                
+                # Try multiple possible locations for the corpus file
+                if not corpus_path.exists():
+                    corpus_path = backend_dir.parent / "corpus_production.jsonl"
+                
+                if not corpus_path.exists():
+                    corpus_path = backend_dir.parent.parent / "corpus_production.jsonl"
+                
+                corpus_path = str(corpus_path)
             
             # Check if corpus file exists
             if not Path(corpus_path).exists():
