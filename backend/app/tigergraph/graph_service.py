@@ -618,12 +618,12 @@ class GraphService:
             # Determine corpus path
             if corpus_path is None:
                 backend_dir = Path(__file__).parent.parent
-                # Try corpus in backend/app directory first (Git location)
-                corpus_path = backend_dir / "app" / "corpus_production.jsonl"
+                # Try corpus in backend directory first (Dockerfile copies it here)
+                corpus_path = backend_dir / "corpus_production.jsonl"
                 
-                # If not found, try in backend directory (if copied to root)
+                # If not found, try in backend/app directory (Git location)
                 if not corpus_path.exists():
-                    corpus_path = backend_dir / "corpus_production.jsonl"
+                    corpus_path = backend_dir / "app" / "corpus_production.jsonl"
                 
                 # If not found, try in parent directory (for development)
                 if not corpus_path.exists():
