@@ -30,7 +30,6 @@ class GraphService:
         try:
             try:
                 from pyTigerGraph import TigerGraphConnection
-                from pyTigerGraph.async_ import AsyncTigerGraphConnection
             except ImportError:
                 logger.warning("pyTigerGraph not available - TigerGraph features will be disabled")
                 self.conn = None
@@ -42,7 +41,7 @@ class GraphService:
             if not host.startswith(('http://', 'https://')):
                 host = f'http://{host}'
             
-            # Initialize both sync and async connections
+            # Initialize sync connection
             self.conn = TigerGraphConnection(
                 host=host,
                 restppPort=settings.tg_port,
@@ -50,12 +49,19 @@ class GraphService:
                 graphname=settings.tg_graphname
             )
             
-            self.async_conn = AsyncTigerGraphConnection(
-                host=host,
-                restppPort=settings.tg_port,
-                gsqlSecret=settings.tg_secret,
-                graphname=settings.tg_graphname
-            )
+            # Try to initialize async connection if available
+            try:
+                from pyTigerGraph.async_ import AsyncTigerGraphConnection
+                self.async_conn = AsyncTigerGraphConnection(
+                    host=host,
+                    restppPort=settings.tg_port,
+                    gsqlSecret=settings.tg_secret,
+                    graphname=settings.tg_graphname
+                )
+                logger.info("TigerGraph async connection initialized")
+            except (ImportError, AttributeError):
+                logger.info("Async connection not available - using sync only")
+                self.async_conn = None
             
             logger.info("TigerGraph connection initialized")
         except Exception as e:
@@ -78,6 +84,7 @@ class GraphService:
         # Handle temporal reasoning - "before 2016" should extract 2012
         if "before 2016" in text.lower() or "prior to 2016" in text.lower():
             entities.append("year_2012")
+            entities.append("2012")  # Also add plain year for better matching
         
         # Extract event-specific keywords
         event_keywords = ['walk', 'athletics', 'kilometres', 'km', 'marathon', 'sprint', 'swimming', 'cycling']
@@ -118,6 +125,18 @@ class GraphService:
             )
         
         try:
+            # First, check if the graph actually exists
+            graph_exists = await self.check_graph_exists()
+            if not graph_exists:
+                logger.warning("TigerGraph graph does not exist - skipping traversal")
+                return GraphContext(
+                    entities=entities,
+                    relationships=[],
+                    traversal_depth=0,
+                    nodes_visited=0,
+                    edges_traversed=0
+                )
+            
             # Use async connection if available, otherwise use sync with asyncio.to_thread
             if self.async_conn:
                 try:
@@ -130,6 +149,8 @@ class GraphService:
                 
         except Exception as e:
             logger.error(f"Graph traversal failed: {e}")
+            import traceback
+            traceback.print_exc()
             return GraphContext(
                 entities=entities,
                 relationships=[],
@@ -159,6 +180,8 @@ class GraphService:
             for entity in entities:
                 if entity.startswith('year_'):
                     year_entity = entity.replace('year_', '')
+                elif entity.isdigit() and len(entity) == 4:  # Plain year like "2012"
+                    year_entity = entity
                 elif any(keyword in entity.lower() for keyword in ['walk', 'athletics', 'kilometres', 'km']):
                     event_keywords.append(entity)
             
@@ -273,6 +296,8 @@ class GraphService:
             for entity in entities:
                 if entity.startswith('year_'):
                     year_entity = entity.replace('year_', '')
+                elif entity.isdigit() and len(entity) == 4:  # Plain year like "2012"
+                    year_entity = entity
                 elif any(keyword in entity.lower() for keyword in ['walk', 'athletics', 'kilometres', 'km']):
                     event_keywords.append(entity)
             
