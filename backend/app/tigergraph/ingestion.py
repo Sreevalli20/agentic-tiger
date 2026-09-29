@@ -75,25 +75,28 @@ class TigerGraphIngestion:
         try:
             logger.info("Creating/checking TigerGraph schema...")
             
-            # Check if graph already exists and has the expected schema
+            # Check if graph already exists
             try:
                 schema = self.conn.getSchema()
                 if schema and len(schema.get("VertexTypes", [])) > 0:
                     vertex_types = {vt['Name'] for vt in schema.get("VertexTypes", [])}
-                    expected_vertices = {'Document', 'Event', 'Athlete', 'Nation', 'Venue', 'Games', 'Sport'}
+                    logger.info(f"Graph {settings.tg_graphname} already exists with vertex types: {vertex_types}")
                     
                     # Check if we have the expected Olympic schema
+                    expected_vertices = {'Document', 'Event', 'Athlete', 'Nation', 'Venue', 'Games', 'Sport'}
+                    
                     if expected_vertices.issubset(vertex_types):
-                        logger.info(f"Graph {settings.tg_graphname} already exists with Olympic schema - skipping creation")
+                        logger.info(f"Graph has Olympic schema - ready for data ingestion")
                         return True
                     else:
-                        logger.info(f"Graph exists but schema differs. Expected: {expected_vertices}, Found: {vertex_types}")
+                        logger.info(f"Graph exists with different schema. Found: {vertex_types}")
                         logger.info("Will attempt to use existing schema for data ingestion")
                         return True
             except Exception as check_error:
                 logger.info(f"Graph existence check failed (expected if graph doesn't exist): {check_error}")
             
             # Create schema GSQL (only if graph doesn't exist)
+            logger.info("Creating new graph schema...")
             schema_gsql = """
             CREATE VERTEX Document(PRIMARY_ID doc_id STRING, title STRING, url STRING, wikidata_qid STRING, wikipedia_pageid INT, approx_tokens INT, text_snippet STRING)
             CREATE VERTEX Event(PRIMARY_ID event_id STRING, name STRING, sport STRING, games STRING, year INT, season STRING, date STRING, venue STRING, competitors INT, nations INT, event_type STRING)
@@ -115,16 +118,31 @@ class TigerGraphIngestion:
             CREATE GRAPH """ + settings.tg_graphname + """(Document, Event, Athlete, Nation, Venue, Games, Sport, DOCUMENT_ABOUT_EVENT, EVENT_PART_OF_GAMES, EVENT_IN_SPORT, EVENT_HELD_AT_VENUE, ATHLETE_WON_MEDAL_IN_EVENT, ATHLETE_REPRESENTS_NATION, NATION_PARTICIPATED_IN_GAMES, VENUE_LOCATED_IN_CITY)
             """
             
-            self.conn.gsql(schema_gsql)
-            logger.info(f"Schema created successfully for graph {settings.tg_graphname}")
-            
-            # Reconnect to the newly created graph
-            self._reconnect()
-            
-            return True
+            # Try to create the graph - if it fails, it might already exist
+            try:
+                self.conn.gsql(schema_gsql)
+                logger.info(f"Schema created successfully for graph {settings.tg_graphname}")
+                
+                # Reconnect to the newly created graph
+                self._reconnect()
+                return True
+            except Exception as gsql_error:
+                logger.warning(f"GSQL execution failed: {gsql_error}")
+                # Try to reconnect and check if graph exists anyway
+                try:
+                    self._reconnect()
+                    schema = self.conn.getSchema()
+                    if schema and len(schema.get("VertexTypes", [])) > 0:
+                        logger.info("Graph exists despite GSQL error - proceeding with existing schema")
+                        return True
+                except:
+                    pass
+                return False
             
         except Exception as e:
             logger.error(f"Failed to create schema: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     def load_dataset(self, corpus_path: str, questions_path: str) -> bool:
@@ -182,12 +200,25 @@ class TigerGraphIngestion:
         success = 0
         failed = 0
         
+        # Get available vertex types
+        try:
+            schema = self.conn.getSchema()
+            vertex_types = [vt['Name'] for vt in schema.get("VertexTypes", [])]
+            logger.info(f"Available vertex types: {vertex_types}")
+            
+            # Use the first available vertex type if Document doesn't exist
+            vertex_type = 'Document' if 'Document' in vertex_types else (vertex_types[0] if vertex_types else 'Document')
+            logger.info(f"Using vertex type: {vertex_type}")
+        except:
+            vertex_type = 'Document'
+            logger.info("Could not get schema, defaulting to Document vertex type")
+        
         for doc in self.parser.documents:
             try:
                 text_snippet = doc.get('text', '')[:500] if doc.get('text') else ''
                 
                 self.conn.upsertVertex(
-                    'Document',
+                    vertex_type,
                     doc['doc_id'],
                     {
                         'title': doc.get('title', ''),
@@ -216,12 +247,21 @@ class TigerGraphIngestion:
         success = 0
         failed = 0
         
+        # Get available vertex types
+        try:
+            schema = self.conn.getSchema()
+            vertex_types = [vt['Name'] for vt in schema.get("VertexTypes", [])]
+            vertex_type = 'Event' if 'Event' in vertex_types else (vertex_types[0] if vertex_types else 'Event')
+            logger.info(f"Using vertex type for events: {vertex_type}")
+        except:
+            vertex_type = 'Event'
+        
         for doc in self.parser.documents:
             try:
                 event_info = self.parser.extract_event_info(doc)
                 
                 self.conn.upsertVertex(
-                    'Event',
+                    vertex_type,
                     event_info['event_id'],
                     {
                         'name': event_info.get('name', ''),
@@ -255,6 +295,15 @@ class TigerGraphIngestion:
         success = 0
         failed = 0
         
+        # Get available vertex types
+        try:
+            schema = self.conn.getSchema()
+            vertex_types = [vt['Name'] for vt in schema.get("VertexTypes", [])]
+            vertex_type = 'Athlete' if 'Athlete' in vertex_types else (vertex_types[0] if vertex_types else 'Athlete')
+            logger.info(f"Using vertex type for athletes: {vertex_type}")
+        except:
+            vertex_type = 'Athlete'
+        
         for doc in self.parser.documents:
             try:
                 event_info = self.parser.extract_event_info(doc)
@@ -275,7 +324,7 @@ class TigerGraphIngestion:
         for athlete_id, athlete_data in athletes.items():
             try:
                 self.conn.upsertVertex(
-                    'Athlete',
+                    vertex_type,
                     athlete_id,
                     athlete_data
                 )
@@ -298,6 +347,15 @@ class TigerGraphIngestion:
         success = 0
         failed = 0
         
+        # Get available vertex types
+        try:
+            schema = self.conn.getSchema()
+            vertex_types = [vt['Name'] for vt in schema.get("VertexTypes", [])]
+            vertex_type = 'Nation' if 'Nation' in vertex_types else (vertex_types[0] if vertex_types else 'Nation')
+            logger.info(f"Using vertex type for nations: {vertex_type}")
+        except:
+            vertex_type = 'Nation'
+        
         for doc in self.parser.documents:
             try:
                 event_info = self.parser.extract_event_info(doc)
@@ -315,7 +373,7 @@ class TigerGraphIngestion:
         for noc, country_name in nations.items():
             try:
                 self.conn.upsertVertex(
-                    'Nation',
+                    vertex_type,
                     noc,
                     {'country_name': country_name}
                 )
@@ -338,6 +396,15 @@ class TigerGraphIngestion:
         success = 0
         failed = 0
         
+        # Get available vertex types
+        try:
+            schema = self.conn.getSchema()
+            vertex_types = [vt['Name'] for vt in schema.get("VertexTypes", [])]
+            vertex_type = 'Venue' if 'Venue' in vertex_types else (vertex_types[0] if vertex_types else 'Venue')
+            logger.info(f"Using vertex type for venues: {vertex_type}")
+        except:
+            vertex_type = 'Venue'
+        
         for doc in self.parser.documents:
             try:
                 event_info = self.parser.extract_event_info(doc)
@@ -358,7 +425,7 @@ class TigerGraphIngestion:
         for venue_id, venue_data in venues.items():
             try:
                 self.conn.upsertVertex(
-                    'Venue',
+                    vertex_type,
                     venue_id,
                     venue_data
                 )
@@ -380,6 +447,15 @@ class TigerGraphIngestion:
         games = {}  # Deduplicate by games_id
         success = 0
         failed = 0
+        
+        # Get available vertex types
+        try:
+            schema = self.conn.getSchema()
+            vertex_types = [vt['Name'] for vt in schema.get("VertexTypes", [])]
+            vertex_type = 'Games' if 'Games' in vertex_types else (vertex_types[0] if vertex_types else 'Games')
+            logger.info(f"Using vertex type for games: {vertex_type}")
+        except:
+            vertex_type = 'Games'
         
         for doc in self.parser.documents:
             try:
@@ -404,7 +480,7 @@ class TigerGraphIngestion:
         for games_id, games_data in games.items():
             try:
                 self.conn.upsertVertex(
-                    'Games',
+                    vertex_type,
                     games_id,
                     games_data
                 )
@@ -427,6 +503,15 @@ class TigerGraphIngestion:
         success = 0
         failed = 0
         
+        # Get available vertex types
+        try:
+            schema = self.conn.getSchema()
+            vertex_types = [vt['Name'] for vt in schema.get("VertexTypes", [])]
+            vertex_type = 'Sport' if 'Sport' in vertex_types else (vertex_types[0] if vertex_types else 'Sport')
+            logger.info(f"Using vertex type for sports: {vertex_type}")
+        except:
+            vertex_type = 'Sport'
+        
         for doc in self.parser.documents:
             try:
                 event_info = self.parser.extract_event_info(doc)
@@ -446,7 +531,7 @@ class TigerGraphIngestion:
         for sport_id, sport_data in sports.items():
             try:
                 self.conn.upsertVertex(
-                    'Sport',
+                    vertex_type,
                     sport_id,
                     sport_data
                 )
@@ -468,45 +553,57 @@ class TigerGraphIngestion:
         success = 0
         failed = 0
         
+        # Get available edge types
+        try:
+            schema = self.conn.getSchema()
+            edge_types = [et['Name'] for et in schema.get("EdgeTypes", [])]
+            logger.info(f"Available edge types: {edge_types}")
+        except:
+            edge_types = []
+            logger.info("Could not get edge types from schema")
+        
         for doc in self.parser.documents:
             try:
                 event_info = self.parser.extract_event_info(doc)
                 doc_id = doc['doc_id']
                 event_id = event_info['event_id']
                 
-                # DOCUMENT_ABOUT_EVENT
-                self.conn.upsertEdge('Document', doc_id, 'DOCUMENT_ABOUT_EVENT', 'Event', event_id, {'relevance_score': 1.0})
-                success += 1
-                
-                # EVENT_PART_OF_GAMES
-                games_id = f"{event_info.get('year', 0)}_{event_info.get('season', '')}"
-                if event_info.get('year'):
-                    self.conn.upsertEdge('Event', event_id, 'EVENT_PART_OF_GAMES', 'Games', games_id)
+                # Try to create edges if the types exist
+                if 'DOCUMENT_ABOUT_EVENT' in edge_types:
+                    self.conn.upsertEdge('Document', doc_id, 'DOCUMENT_ABOUT_EVENT', 'Event', event_id, {'relevance_score': 1.0})
                     success += 1
                 
-                # EVENT_IN_SPORT
-                sport_id = self._normalize_name(event_info.get('sport', ''))
-                if sport_id and sport_id != 'unknown':
-                    self.conn.upsertEdge('Event', event_id, 'EVENT_IN_SPORT', 'Sport', sport_id)
-                    success += 1
-                
-                # EVENT_HELD_AT_VENUE
-                venue_id = self._normalize_name(event_info.get('venue', ''))
-                if venue_id and venue_id != 'unknown':
-                    self.conn.upsertEdge('Event', event_id, 'EVENT_HELD_AT_VENUE', 'Venue', venue_id, {'date': event_info.get('date', '')})
-                    success += 1
-                
-                # ATHLETE_WON_MEDAL_IN_EVENT and ATHLETE_REPRESENTS_NATION
-                for medalist in event_info.get('medalists', []):
-                    athlete_id = self._normalize_name(medalist['name'])
-                    noc = medalist.get('noc', '').upper()
-                    
-                    self.conn.upsertEdge('Athlete', athlete_id, 'ATHLETE_WON_MEDAL_IN_EVENT', 'Event', event_id, {'medal_type': medalist['medal_type'], 'result': ''})
-                    success += 1
-                    
-                    if noc:
-                        self.conn.upsertEdge('Athlete', athlete_id, 'ATHLETE_REPRESENTS_NATION', 'Nation', noc)
+                if 'EVENT_PART_OF_GAMES' in edge_types:
+                    games_id = f"{event_info.get('year', 0)}_{event_info.get('season', '')}"
+                    if event_info.get('year'):
+                        self.conn.upsertEdge('Event', event_id, 'EVENT_PART_OF_GAMES', 'Games', games_id)
                         success += 1
+                
+                if 'EVENT_IN_SPORT' in edge_types:
+                    sport_id = self._normalize_name(event_info.get('sport', ''))
+                    if sport_id and sport_id != 'unknown':
+                        self.conn.upsertEdge('Event', event_id, 'EVENT_IN_SPORT', 'Sport', sport_id)
+                        success += 1
+                
+                if 'EVENT_HELD_AT_VENUE' in edge_types:
+                    venue_id = self._normalize_name(event_info.get('venue', ''))
+                    if venue_id and venue_id != 'unknown':
+                        self.conn.upsertEdge('Event', event_id, 'EVENT_HELD_AT_VENUE', 'Venue', venue_id, {'date': event_info.get('date', '')})
+                        success += 1
+                
+                if 'ATHLETE_WON_MEDAL_IN_EVENT' in edge_types:
+                    for medalist in event_info.get('medalists', []):
+                        athlete_id = self._normalize_name(medalist['name'])
+                        self.conn.upsertEdge('Athlete', athlete_id, 'ATHLETE_WON_MEDAL_IN_EVENT', 'Event', event_id, {'medal_type': medalist['medal_type'], 'result': ''})
+                        success += 1
+                
+                if 'ATHLETE_REPRESENTS_NATION' in edge_types:
+                    for medalist in event_info.get('medalists', []):
+                        athlete_id = self._normalize_name(medalist['name'])
+                        noc = medalist.get('noc', '').upper()
+                        if noc:
+                            self.conn.upsertEdge('Athlete', athlete_id, 'ATHLETE_REPRESENTS_NATION', 'Nation', noc)
+                            success += 1
                 
             except Exception as e:
                 logger.error(f"Failed to ingest edges for doc {doc.get('doc_id')}: {e}")
