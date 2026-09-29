@@ -67,80 +67,49 @@ class TigerGraphIngestion:
             self.conn = None
     
     def create_schema(self) -> bool:
-        """Create the TigerGraph schema idempotently."""
+        """Check if the manually created TigerGraph schema exists and is compatible."""
         if not self.conn:
             logger.error("No TigerGraph connection available")
             return False
         
         try:
-            logger.info("Creating/checking TigerGraph schema...")
+            logger.info("Checking TigerGraph schema...")
             
-            # Check if graph already exists
+            # Check if graph already exists (schema was manually created)
             try:
                 schema = self.conn.getSchema()
                 if schema and len(schema.get("VertexTypes", [])) > 0:
                     vertex_types = {vt['Name'] for vt in schema.get("VertexTypes", [])}
-                    logger.info(f"Graph {settings.tg_graphname} already exists with vertex types: {vertex_types}")
+                    edge_types = {et['Name'] for et in schema.get("EdgeTypes", [])}
+                    logger.info(f"Graph {settings.tg_graphname} exists with vertex types: {vertex_types}")
+                    logger.info(f"Graph {settings.tg_graphname} exists with edge types: {edge_types}")
                     
                     # Check if we have the expected Olympic schema
                     expected_vertices = {'Document', 'Event', 'Athlete', 'Nation', 'Venue', 'Games', 'Sport'}
+                    expected_edges = {'DOCUMENT_ABOUT_EVENT', 'EVENT_PART_OF_GAMES', 'EVENT_IN_SPORT', 
+                                    'EVENT_HELD_AT_VENUE', 'ATHLETE_WON_MEDAL_IN_EVENT', 
+                                    'ATHLETE_REPRESENTS_NATION', 'NATION_PARTICIPATED_IN_GAMES', 
+                                    'VENUE_LOCATED_IN_CITY'}
                     
                     if expected_vertices.issubset(vertex_types):
                         logger.info(f"Graph has Olympic schema - ready for data ingestion")
+                        if expected_edges.issubset(edge_types):
+                            logger.info(f"Graph has all expected edges - ready for data ingestion")
+                        else:
+                            logger.warning(f"Graph missing some edges. Expected: {expected_edges - edge_types}")
                         return True
                     else:
-                        logger.info(f"Graph exists with different schema. Found: {vertex_types}")
-                        logger.info("Will attempt to use existing schema for data ingestion")
-                        return True
+                        logger.error(f"Graph exists with different schema. Expected: {expected_vertices}, Found: {vertex_types}")
+                        return False
+                else:
+                    logger.error(f"Graph {settings.tg_graphname} exists but has no vertex types")
+                    return False
             except Exception as check_error:
-                logger.info(f"Graph existence check failed (expected if graph doesn't exist): {check_error}")
-            
-            # Create schema GSQL (only if graph doesn't exist)
-            logger.info("Creating new graph schema...")
-            schema_gsql = """
-            CREATE VERTEX Document(PRIMARY_ID doc_id STRING, title STRING, url STRING, wikidata_qid STRING, wikipedia_pageid INT, approx_tokens INT, text_snippet STRING)
-            CREATE VERTEX Event(PRIMARY_ID event_id STRING, name STRING, sport STRING, games STRING, year INT, season STRING, date STRING, venue STRING, competitors INT, nations INT, event_type STRING)
-            CREATE VERTEX Athlete(PRIMARY_ID athlete_id STRING, name STRING, noc STRING, sport STRING)
-            CREATE VERTEX Nation(PRIMARY_ID noc STRING, country_name STRING)
-            CREATE VERTEX Venue(PRIMARY_ID venue_id STRING, name STRING, location STRING, type STRING)
-            CREATE VERTEX Games(PRIMARY_ID games_id STRING, year INT, season STRING, host_city STRING, host_country STRING)
-            CREATE VERTEX Sport(PRIMARY_ID sport_id STRING, name STRING, category STRING)
-            
-            CREATE DIRECTED EDGE DOCUMENT_ABOUT_EVENT(FROM Document, TO Event, relevance_score FLOAT)
-            CREATE DIRECTED EDGE EVENT_PART_OF_GAMES(FROM Event, TO Games)
-            CREATE DIRECTED EDGE EVENT_IN_SPORT(FROM Event, TO Sport)
-            CREATE DIRECTED EDGE EVENT_HELD_AT_VENUE(FROM Event, TO Venue, date STRING)
-            CREATE DIRECTED EDGE ATHLETE_WON_MEDAL_IN_EVENT(FROM Athlete, TO Event, medal_type STRING, result STRING)
-            CREATE DIRECTED EDGE ATHLETE_REPRESENTS_NATION(FROM Athlete, TO Nation)
-            CREATE DIRECTED EDGE NATION_PARTICIPATED_IN_GAMES(FROM Nation, TO Games, athlete_count INT)
-            CREATE DIRECTED EDGE VENUE_LOCATED_IN_CITY(FROM Venue, TO Games)
-            
-            CREATE GRAPH """ + settings.tg_graphname + """(Document, Event, Athlete, Nation, Venue, Games, Sport, DOCUMENT_ABOUT_EVENT, EVENT_PART_OF_GAMES, EVENT_IN_SPORT, EVENT_HELD_AT_VENUE, ATHLETE_WON_MEDAL_IN_EVENT, ATHLETE_REPRESENTS_NATION, NATION_PARTICIPATED_IN_GAMES, VENUE_LOCATED_IN_CITY)
-            """
-            
-            # Try to create the graph - if it fails, it might already exist
-            try:
-                self.conn.gsql(schema_gsql)
-                logger.info(f"Schema created successfully for graph {settings.tg_graphname}")
-                
-                # Reconnect to the newly created graph
-                self._reconnect()
-                return True
-            except Exception as gsql_error:
-                logger.warning(f"GSQL execution failed: {gsql_error}")
-                # Try to reconnect and check if graph exists anyway
-                try:
-                    self._reconnect()
-                    schema = self.conn.getSchema()
-                    if schema and len(schema.get("VertexTypes", [])) > 0:
-                        logger.info("Graph exists despite GSQL error - proceeding with existing schema")
-                        return True
-                except:
-                    pass
+                logger.error(f"Graph existence check failed: {check_error}")
                 return False
             
         except Exception as e:
-            logger.error(f"Failed to create schema: {e}")
+            logger.error(f"Failed to check schema: {e}")
             import traceback
             traceback.print_exc()
             return False
@@ -191,7 +160,7 @@ class TigerGraphIngestion:
             return False
     
     def ingest_documents(self) -> Dict[str, int]:
-        """Ingest documents as Document vertices."""
+        """Ingest documents as Document vertices using manually created schema."""
         if not self.conn or not self.parser:
             logger.error("Connection or parser not initialized")
             return {'success': 0, 'failed': 0}
@@ -215,18 +184,15 @@ class TigerGraphIngestion:
         
         for doc in self.parser.documents:
             try:
-                text_snippet = doc.get('text', '')[:500] if doc.get('text') else ''
+                # Match manually created schema: Document(doc_id, title, text)
+                text_snippet = doc.get('text', '')[:1000] if doc.get('text') else ''
                 
                 self.conn.upsertVertex(
                     vertex_type,
                     doc['doc_id'],
                     {
                         'title': doc.get('title', ''),
-                        'url': doc.get('url', ''),
-                        'wikidata_qid': doc.get('wikidata_qid', ''),
-                        'wikipedia_pageid': doc.get('wikipedia_pageid', 0),
-                        'approx_tokens': doc.get('approx_tokens', 0),
-                        'text_snippet': text_snippet
+                        'text': text_snippet
                     }
                 )
                 success += 1
@@ -238,7 +204,7 @@ class TigerGraphIngestion:
         return {'success': success, 'failed': failed}
     
     def ingest_events(self) -> Dict[str, int]:
-        """Ingest events as Event vertices."""
+        """Ingest events as Event vertices using manually created schema."""
         if not self.conn or not self.parser:
             logger.error("Connection or parser not initialized")
             return {'success': 0, 'failed': 0}
@@ -260,20 +226,14 @@ class TigerGraphIngestion:
             try:
                 event_info = self.parser.extract_event_info(doc)
                 
+                # Match manually created schema: Event(event_id, name, year, season)
                 self.conn.upsertVertex(
                     vertex_type,
                     event_info['event_id'],
                     {
                         'name': event_info.get('name', ''),
-                        'sport': event_info.get('sport', ''),
-                        'games': event_info.get('games', ''),
                         'year': event_info.get('year', 0),
-                        'season': event_info.get('season', ''),
-                        'date': event_info.get('date', ''),
-                        'venue': event_info.get('venue', ''),
-                        'competitors': int(event_info.get('competitors', 0)) if event_info.get('competitors', '').isdigit() else 0,
-                        'nations': int(event_info.get('nations', 0)) if event_info.get('nations', '').isdigit() else 0,
-                        'event_type': event_info.get('event_type', '')
+                        'season': event_info.get('season', '')
                     }
                 )
                 success += 1
@@ -285,7 +245,7 @@ class TigerGraphIngestion:
         return {'success': success, 'failed': failed}
     
     def ingest_athletes(self) -> Dict[str, int]:
-        """Ingest athletes as Athlete vertices."""
+        """Ingest athletes as Athlete vertices using manually created schema."""
         if not self.conn or not self.parser:
             logger.error("Connection or parser not initialized")
             return {'success': 0, 'failed': 0}
@@ -312,10 +272,9 @@ class TigerGraphIngestion:
                     athlete_id = self._normalize_name(medalist['name'])
                     
                     if athlete_id not in athletes:
+                        # Match manually created schema: Athlete(athlete_id, name)
                         athletes[athlete_id] = {
-                            'name': medalist['name'],
-                            'noc': medalist.get('noc', ''),
-                            'sport': event_info.get('sport', '')
+                            'name': medalist['name']
                         }
             except Exception as e:
                 logger.error(f"Failed to extract athletes from doc {doc.get('doc_id')}: {e}")
@@ -337,7 +296,7 @@ class TigerGraphIngestion:
         return {'success': success, 'failed': failed}
     
     def ingest_nations(self) -> Dict[str, int]:
-        """Ingest nations as Nation vertices."""
+        """Ingest nations as Nation vertices using manually created schema."""
         if not self.conn or not self.parser:
             logger.error("Connection or parser not initialized")
             return {'success': 0, 'failed': 0}
@@ -363,7 +322,7 @@ class TigerGraphIngestion:
                 for medalist in event_info.get('medalists', []):
                     noc = medalist.get('noc', '').upper()
                     if noc and noc not in nations:
-                        # Map NOC to country name (simplified)
+                        # Match manually created schema: Nation(noc, name)
                         country_name = self._noc_to_country_name(noc)
                         nations[noc] = country_name
             except Exception as e:
@@ -375,7 +334,7 @@ class TigerGraphIngestion:
                 self.conn.upsertVertex(
                     vertex_type,
                     noc,
-                    {'country_name': country_name}
+                    {'name': country_name}
                 )
                 success += 1
             except Exception as e:
@@ -386,7 +345,7 @@ class TigerGraphIngestion:
         return {'success': success, 'failed': failed}
     
     def ingest_venues(self) -> Dict[str, int]:
-        """Ingest venues as Venue vertices."""
+        """Ingest venues as Venue vertices using manually created schema."""
         if not self.conn or not self.parser:
             logger.error("Connection or parser not initialized")
             return {'success': 0, 'failed': 0}
@@ -413,10 +372,10 @@ class TigerGraphIngestion:
                 if venue_name:
                     venue_id = self._normalize_name(venue_name)
                     if venue_id not in venues:
+                        # Match manually created schema: Venue(venue_id, name, city)
                         venues[venue_id] = {
                             'name': venue_name,
-                            'location': event_info.get('games', '').split()[-1] if event_info.get('games') else '',
-                            'type': 'unknown'
+                            'city': event_info.get('games', '').split()[-1] if event_info.get('games') else ''
                         }
             except Exception as e:
                 logger.error(f"Failed to extract venues from doc {doc.get('doc_id')}: {e}")
@@ -438,7 +397,7 @@ class TigerGraphIngestion:
         return {'success': success, 'failed': failed}
     
     def ingest_games(self) -> Dict[str, int]:
-        """Ingest Olympic Games as Games vertices."""
+        """Ingest Olympic Games as Games vertices using manually created schema."""
         if not self.conn or not self.parser:
             logger.error("Connection or parser not initialized")
             return {'success': 0, 'failed': 0}
@@ -467,11 +426,11 @@ class TigerGraphIngestion:
                 if year and season:
                     games_id = f"{year}_{season}"
                     if games_id not in games:
+                        # Match manually created schema: Games(games_id, year, season, name)
                         games[games_id] = {
                             'year': year,
                             'season': season,
-                            'host_city': 'unknown',  # Would need additional parsing
-                            'host_country': 'unknown'
+                            'name': f"{year} {season}"
                         }
             except Exception as e:
                 logger.error(f"Failed to extract games from doc {doc.get('doc_id')}: {e}")
@@ -493,7 +452,7 @@ class TigerGraphIngestion:
         return {'success': success, 'failed': failed}
     
     def ingest_sports(self) -> Dict[str, int]:
-        """Ingest sports as Sport vertices."""
+        """Ingest sports as Sport vertices using manually created schema."""
         if not self.conn or not self.parser:
             logger.error("Connection or parser not initialized")
             return {'success': 0, 'failed': 0}
@@ -520,9 +479,9 @@ class TigerGraphIngestion:
                 if sport_name and sport_name != 'Unknown':
                     sport_id = self._normalize_name(sport_name)
                     if sport_id not in sports:
+                        # Match manually created schema: Sport(sport_id, name)
                         sports[sport_id] = {
-                            'name': sport_name,
-                            'category': 'Olympic'
+                            'name': sport_name
                         }
             except Exception as e:
                 logger.error(f"Failed to extract sports from doc {doc.get('doc_id')}: {e}")
@@ -544,7 +503,7 @@ class TigerGraphIngestion:
         return {'success': success, 'failed': failed}
     
     def ingest_edges(self) -> Dict[str, int]:
-        """Ingest edges between vertices."""
+        """Ingest edges between vertices using manually created schema (no edge attributes)."""
         if not self.conn or not self.parser:
             logger.error("Connection or parser not initialized")
             return {'success': 0, 'failed': 0}
@@ -568,9 +527,9 @@ class TigerGraphIngestion:
                 doc_id = doc['doc_id']
                 event_id = event_info['event_id']
                 
-                # Try to create edges if the types exist
+                # Try to create edges if the types exist (using manually created schema without attributes)
                 if 'DOCUMENT_ABOUT_EVENT' in edge_types:
-                    self.conn.upsertEdge('Document', doc_id, 'DOCUMENT_ABOUT_EVENT', 'Event', event_id, {'relevance_score': 1.0})
+                    self.conn.upsertEdge('Document', doc_id, 'DOCUMENT_ABOUT_EVENT', 'Event', event_id)
                     success += 1
                 
                 if 'EVENT_PART_OF_GAMES' in edge_types:
@@ -588,13 +547,13 @@ class TigerGraphIngestion:
                 if 'EVENT_HELD_AT_VENUE' in edge_types:
                     venue_id = self._normalize_name(event_info.get('venue', ''))
                     if venue_id and venue_id != 'unknown':
-                        self.conn.upsertEdge('Event', event_id, 'EVENT_HELD_AT_VENUE', 'Venue', venue_id, {'date': event_info.get('date', '')})
+                        self.conn.upsertEdge('Event', event_id, 'EVENT_HELD_AT_VENUE', 'Venue', venue_id)
                         success += 1
                 
                 if 'ATHLETE_WON_MEDAL_IN_EVENT' in edge_types:
                     for medalist in event_info.get('medalists', []):
                         athlete_id = self._normalize_name(medalist['name'])
-                        self.conn.upsertEdge('Athlete', athlete_id, 'ATHLETE_WON_MEDAL_IN_EVENT', 'Event', event_id, {'medal_type': medalist['medal_type'], 'result': ''})
+                        self.conn.upsertEdge('Athlete', athlete_id, 'ATHLETE_WON_MEDAL_IN_EVENT', 'Event', event_id)
                         success += 1
                 
                 if 'ATHLETE_REPRESENTS_NATION' in edge_types:
@@ -604,6 +563,21 @@ class TigerGraphIngestion:
                         if noc:
                             self.conn.upsertEdge('Athlete', athlete_id, 'ATHLETE_REPRESENTS_NATION', 'Nation', noc)
                             success += 1
+                
+                if 'NATION_PARTICIPATED_IN_GAMES' in edge_types:
+                    for medalist in event_info.get('medalists', []):
+                        noc = medalist.get('noc', '').upper()
+                        games_id = f"{event_info.get('year', 0)}_{event_info.get('season', '')}"
+                        if noc and event_info.get('year'):
+                            self.conn.upsertEdge('Nation', noc, 'NATION_PARTICIPATED_IN_GAMES', 'Games', games_id)
+                            success += 1
+                
+                if 'VENUE_LOCATED_IN_CITY' in edge_types:
+                    venue_id = self._normalize_name(event_info.get('venue', ''))
+                    games_id = f"{event_info.get('year', 0)}_{event_info.get('season', '')}"
+                    if venue_id and venue_id != 'unknown' and event_info.get('year'):
+                        self.conn.upsertEdge('Venue', venue_id, 'VENUE_LOCATED_IN_CITY', 'Games', games_id)
+                        success += 1
                 
             except Exception as e:
                 logger.error(f"Failed to ingest edges for doc {doc.get('doc_id')}: {e}")
