@@ -15,51 +15,9 @@ async def lifespan(app: FastAPI):
     """Application lifespan manager."""
     logger.info("Starting GraphProbe AI backend...")
     
-    # Initialize vector database in production mode (with timeout protection)
-    if settings.production_mode:
-        logger.info("Production mode: Initializing vector database on startup")
-        try:
-            from app.retrieval.vector_retriever import VectorRetriever
-            import asyncio
-            
-            retriever = VectorRetriever()
-            
-            # Run initialization with timeout to prevent blocking
-            try:
-                await asyncio.wait_for(
-                    asyncio.to_thread(retriever._ensure_initialized),
-                    timeout=10.0
-                )
-                await asyncio.wait_for(
-                    asyncio.to_thread(retriever._ensure_embedding_model),
-                    timeout=10.0
-                )
-                
-                # Always initialize corpus in production mode (in-memory DB needs data on startup)
-                logger.info("Loading production corpus into in-memory vector DB")
-                success = await asyncio.wait_for(
-                    asyncio.to_thread(retriever.initialize_production_corpus, max_docs=settings.production_max_docs),
-                    timeout=20.0
-                )
-                final_stats = await asyncio.wait_for(
-                    asyncio.to_thread(retriever.get_collection_stats),
-                    timeout=5.0
-                )
-                logger.info(f"Startup initialization complete: success={success}, chunks={final_stats.get('document_count', 0)}")
-                if not success or final_stats.get('document_count', 0) == 0:
-                    logger.error("FAILED: Production corpus initialization did not load any documents")
-            except asyncio.TimeoutError:
-                logger.warning("Vector database initialization timed out - server starting anyway")
-        except Exception as e:
-            logger.error(f"Production mode initialization failed: {e}")
-            import traceback
-            traceback.print_exc()
-    
-    # Initialize TigerGraph graph if configured (disabled - use /api/tigergraph/ingest endpoint)
-    # Note: Automatic initialization disabled to prevent blocking server startup
-    # Use /api/tigergraph/ingest endpoint to manually trigger ingestion after deployment
-    if settings.tg_host and settings.tg_secret:
-        logger.info("TigerGraph configured - automatic initialization disabled, use /api/tigergraph/ingest endpoint")
+    # Skip all initialization on startup to ensure fast startup
+    # Vector DB and TigerGraph will be initialized on first request
+    logger.info("Skipping automatic initialization - will initialize on first request")
     
     yield
     logger.info("Shutting down GraphProbe AI backend...")

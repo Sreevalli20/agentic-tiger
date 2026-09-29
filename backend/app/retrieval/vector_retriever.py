@@ -183,9 +183,18 @@ class VectorRetriever:
         
         global _tfidf_vectorizer, _tfidf_matrix, _documents, _metadatas, _ids
         
-        if not _tfidf_vectorizer or _tfidf_matrix is None:
-            logger.warning("TF-IDF index not available, returning empty results")
-            return []
+        # Lazy initialization: if not loaded, try to load production corpus
+        if not _tfidf_vectorizer or _tfidf_matrix is None or len(_documents) == 0:
+            logger.info("TF-IDF index not available, attempting lazy initialization")
+            try:
+                import asyncio
+                success = await asyncio.to_thread(self.initialize_production_corpus, max_docs=40)
+                if not success:
+                    logger.warning("Lazy initialization failed, returning empty results")
+                    return []
+            except Exception as e:
+                logger.error(f"Lazy initialization failed: {e}")
+                return []
         
         try:
             # Transform query using the same TF-IDF vectorizer
