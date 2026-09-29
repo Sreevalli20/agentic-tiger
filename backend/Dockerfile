@@ -18,7 +18,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Copy corpus file from app directory (dockerContext is ., so app/ is relative to backend/)
+# Copy corpus file from app directory
 COPY app/corpus_production.jsonl ./corpus_production.jsonl
 
 # Verify corpus file exists

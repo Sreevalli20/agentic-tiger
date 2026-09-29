@@ -633,6 +633,10 @@ class GraphService:
                 if not corpus_path.exists():
                     corpus_path = backend_dir.parent.parent / "corpus_production.jsonl"
                 
+                # If still not found, try in src directory (Render structure)
+                if not corpus_path.exists():
+                    corpus_path = backend_dir.parent.parent / "src" / "backend" / "corpus_production.jsonl"
+                
                 corpus_path = str(corpus_path)
             
             # Check if corpus file exists
