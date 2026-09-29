@@ -32,7 +32,7 @@ async def run_tigergraph_ingestion(force: bool = False):
             )
         
         # Paths to corpus - use production corpus in backend directory
-        # In Render, the working directory is /app (Docker WORKDIR)
+        # In Render, the working directory is /app (Docker WORKDIR = backend/)
         # The Dockerfile copies corpus to /app/corpus_production.jsonl (backend root)
         # Try multiple possible locations for the corpus file
         backend_dir = Path(__file__).parent.parent
