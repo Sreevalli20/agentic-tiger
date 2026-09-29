@@ -4,7 +4,7 @@ services:
     env: docker
     plan: free
     dockerfilePath: ./Dockerfile
-    dockerContext: .
+    dockerContext: ..
     envVars:
       - key: APP_HOST
         value: 0.0.0.0
