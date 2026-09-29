@@ -140,8 +140,13 @@ class AgentOrchestrator:
             except asyncio.TimeoutError:
                 logger.warning(f"Action {action} timed out after {settings.operation_timeout_seconds}s")
                 step_result = {"summary": f"Action {action} timed out", "tokens": 0}
-                state.stopping_reason = f"Operation timeout: {action}"
-                break
+                # For graph traversal timeout, continue to evaluation instead of stopping
+                if action == ToolType.GRAPH_TRAVERSE:
+                    logger.info("Graph traversal timed out - continuing to evidence evaluation")
+                    # Don't set stopping_reason, allow pipeline to continue
+                else:
+                    state.stopping_reason = f"Operation timeout: {action}"
+                    break
             
             # Update state
             await self._update_state(state, step_result)
@@ -175,8 +180,12 @@ class AgentOrchestrator:
         elif len(state.evidence) < 3:
             # Need more evidence: vector search
             return ToolType.VECTOR_SEARCH
-        elif not state.graph_relationships and state.iteration <= 3:
+        elif not state.graph_relationships and state.iteration <= 2:
             # Have entities but no relationships: try graph traversal (limited attempts)
+            # But skip if we already have good evidence from vector search
+            if state.evidence and any(ev.metadata.confidence > 0.4 for ev in state.evidence):
+                # Skip graph traversal if we already have good evidence
+                return ToolType.EVALUATE_EVIDENCE
             return ToolType.GRAPH_TRAVERSE
         else:
             # Have evidence and graph (or max graph attempts): evaluate if sufficient
