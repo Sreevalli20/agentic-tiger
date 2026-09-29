@@ -1,6 +1,7 @@
 """TigerGraph service for graph operations."""
 import re
 import sys
+import asyncio
 from pathlib import Path
 from typing import List, Dict, Any
 from app.models.schemas import GraphContext
@@ -80,7 +81,7 @@ class GraphService:
         return unique_entities[:8]
     
     async def traverse_graph(self, entities: List[str], max_hops: int = 2) -> GraphContext:
-        """Traverse graph starting from entities using real TigerGraph queries."""
+        """Traverse graph starting from entities using real TigerGraph queries with timeout protection."""
         if not self.conn:
             logger.warning("TigerGraph not connected, returning empty graph context")
             return GraphContext(
@@ -92,10 +93,14 @@ class GraphService:
             )
         
         try:
-            # Try to run actual TigerGraph queries
+            # Try to run actual TigerGraph queries with timeout protection
             # First, check if the graph exists and get its schema
             try:
-                schema = self.conn.getSchema()
+                # Run getSchema in a thread with timeout to prevent blocking
+                schema = await asyncio.wait_for(
+                    asyncio.to_thread(self.conn.getSchema),
+                    timeout=settings.operation_timeout_seconds
+                )
                 logger.info(f"Connected to graph with schema: {schema}")
                 
                 # Try to run a simple query to verify connectivity
@@ -111,9 +116,12 @@ class GraphService:
                     vertex_type = vertex_types[0]["Name"]
                     logger.info(f"Attempting to query vertex type: {vertex_type}")
                     
-                    # Run a simple query to get some vertices
+                    # Run a simple query to get some vertices with timeout
                     query = f'SELECT * FROM {vertex_type} LIMIT 5'
-                    result = self.conn.runInterpretedQuery(query)
+                    result = await asyncio.wait_for(
+                        asyncio.to_thread(self.conn.runInterpretedQuery, query),
+                        timeout=settings.operation_timeout_seconds
+                    )
                     
                     logger.info(f"Graph query returned results: {len(result) if result else 0} records")
                     
@@ -152,6 +160,16 @@ class GraphService:
                         edges_traversed=0
                     )
                     
+            except asyncio.TimeoutError:
+                logger.error(f"TigerGraph operation timed out after {settings.operation_timeout_seconds}s")
+                # Fall back to empty context if query times out
+                return GraphContext(
+                    entities=entities,
+                    relationships=[],
+                    traversal_depth=0,
+                    nodes_visited=0,
+                    edges_traversed=0
+                )
             except Exception as query_error:
                 logger.error(f"TigerGraph query failed: {query_error}")
                 # Fall back to empty context if query fails

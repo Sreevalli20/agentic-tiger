@@ -4,6 +4,7 @@ from openai import OpenAI
 import anthropic
 import google.genai as genai
 import warnings
+import asyncio
 from app.core.config import settings
 import logging
 
@@ -89,57 +90,85 @@ Provide a clear, well-supported answer with citations to the relevant documents.
             }
     
     async def _generate_openai(self, prompt: str) -> tuple[str, Dict[str, int]]:
-        """Generate answer using OpenAI."""
-        response = self.client.chat.completions.create(
-            model=settings.llm_model,
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant that answers questions based on provided context."},
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=500,
-            temperature=0.7
-        )
-        
-        answer = response.choices[0].message.content
-        tokens = {
-            "input": response.usage.prompt_tokens,
-            "output": response.usage.completion_tokens,
-            "total": response.usage.total_tokens
-        }
-        
-        return answer, tokens
+        """Generate answer using OpenAI with timeout protection."""
+        try:
+            response = await asyncio.wait_for(
+                asyncio.to_thread(
+                    self.client.chat.completions.create,
+                    model=settings.llm_model,
+                    messages=[
+                        {"role": "system", "content": "You are a helpful assistant that answers questions based on provided context."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    max_tokens=500,
+                    temperature=0.7
+                ),
+                timeout=settings.operation_timeout_seconds
+            )
+            
+            answer = response.choices[0].message.content
+            tokens = {
+                "input": response.usage.prompt_tokens,
+                "output": response.usage.completion_tokens,
+                "total": response.usage.total_tokens
+            }
+            
+            return answer, tokens
+        except asyncio.TimeoutError:
+            logger.error(f"OpenAI generation timed out after {settings.operation_timeout_seconds}s")
+            return f"LLM generation timed out after {settings.operation_timeout_seconds}s", {
+                "input": 0,
+                "output": 0,
+                "total": 0
+            }
     
     async def _generate_anthropic(self, prompt: str) -> tuple[str, Dict[str, int]]:
-        """Generate answer using Anthropic."""
-        response = self.client.messages.create(
-            model=settings.llm_model,
-            max_tokens=500,
-            temperature=0.7,
-            messages=[
-                {"role": "user", "content": prompt}
-            ]
-        )
-        
-        answer = response.content[0].text
-        tokens = {
-            "input": response.usage.input_tokens,
-            "output": response.usage.output_tokens,
-            "total": response.usage.input_tokens + response.usage.output_tokens
-        }
-        
-        return answer, tokens
+        """Generate answer using Anthropic with timeout protection."""
+        try:
+            response = await asyncio.wait_for(
+                asyncio.to_thread(
+                    self.client.messages.create,
+                    model=settings.llm_model,
+                    max_tokens=500,
+                    temperature=0.7,
+                    messages=[
+                        {"role": "user", "content": prompt}
+                    ]
+                ),
+                timeout=settings.operation_timeout_seconds
+            )
+            
+            answer = response.content[0].text
+            tokens = {
+                "input": response.usage.input_tokens,
+                "output": response.usage.output_tokens,
+                "total": response.usage.input_tokens + response.usage.output_tokens
+            }
+            
+            return answer, tokens
+        except asyncio.TimeoutError:
+            logger.error(f"Anthropic generation timed out after {settings.operation_timeout_seconds}s")
+            return f"LLM generation timed out after {settings.operation_timeout_seconds}s", {
+                "input": 0,
+                "output": 0,
+                "total": 0
+            }
     
     async def _generate_google(self, prompt: str) -> tuple[str, Dict[str, int]]:
-        """Generate answer using Google Gemini."""
+        """Generate answer using Google Gemini with timeout protection."""
         try:
-            # Use the new google.genai API
-            response = self.client.models.generate_content(
-                model=settings.llm_model,
-                contents=prompt,
-                config=genai.GenerateContentConfig(
-                    max_output_tokens=500,
-                    temperature=0.7,
-                )
+            # Use the new google.genai API with timeout
+            response = await asyncio.wait_for(
+                asyncio.to_thread(
+                    self.client.models.generate_content,
+                    model=settings.llm_model,
+                    contents=prompt,
+                    config=genai.GenerateContentConfig(
+                        max_output_tokens=500,
+                        temperature=0.7,
+                    )
+                ),
+                timeout=settings.operation_timeout_seconds
             )
             
             answer = response.text
@@ -151,6 +180,13 @@ Provide a clear, well-supported answer with citations to the relevant documents.
             }
             
             return answer, tokens
+        except asyncio.TimeoutError:
+            logger.error(f"Google generation timed out after {settings.operation_timeout_seconds}s")
+            return f"LLM generation timed out after {settings.operation_timeout_seconds}s", {
+                "input": 0,
+                "output": 0,
+                "total": 0
+            }
         except Exception as e:
             logger.error(f"Google generation failed: {e}")
             # Fallback to placeholder
