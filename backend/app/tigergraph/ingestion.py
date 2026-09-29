@@ -46,6 +46,26 @@ class TigerGraphIngestion:
             logger.error(f"Failed to initialize TigerGraph connection: {e}")
             self.conn = None
     
+    def _reconnect(self):
+        """Reconnect to TigerGraph after schema creation."""
+        try:
+            from pyTigerGraph import TigerGraphConnection
+            
+            host = settings.tg_host
+            if not host.startswith(('http://', 'https://')):
+                host = f'http://{host}'
+            
+            self.conn = TigerGraphConnection(
+                host=host,
+                restppPort=settings.tg_port,
+                gsqlSecret=settings.tg_secret,
+                graphname=settings.tg_graphname
+            )
+            logger.info("TigerGraph reconnected successfully")
+        except Exception as e:
+            logger.error(f"Failed to reconnect to TigerGraph: {e}")
+            self.conn = None
+    
     def create_schema(self) -> bool:
         """Create the TigerGraph schema idempotently."""
         if not self.conn:
@@ -96,7 +116,11 @@ class TigerGraphIngestion:
             """
             
             self.conn.gsql(schema_gsql)
-            logger.info("Schema created successfully")
+            logger.info(f"Schema created successfully for graph {settings.tg_graphname}")
+            
+            # Reconnect to the newly created graph
+            self._reconnect()
+            
             return True
             
         except Exception as e:
@@ -558,7 +582,8 @@ class TigerGraphIngestion:
                     logger.info(f"Current vertex counts: {vertex_counts}, Total: {total_vertices}")
                     
                     # If graph already has substantial data, skip re-ingestion
-                    if total_vertices > 100:
+                    # Use a higher threshold to ensure we have enough data for meaningful queries
+                    if total_vertices > 500:
                         logger.info(f"Graph already has {total_vertices} vertices - skipping data ingestion")
                         results['status'] = 'skipped'
                         results['message'] = 'Graph already contains data'
@@ -570,8 +595,11 @@ class TigerGraphIngestion:
                             pass
                         results['duration_seconds'] = time.time() - start_time
                         return results
+                    else:
+                        logger.info(f"Graph has only {total_vertices} vertices - proceeding with data ingestion")
                 except Exception as count_error:
                     logger.warning(f"Failed to check existing vertex counts: {count_error}")
+                    logger.info("Proceeding with data ingestion due to count check failure")
             else:
                 logger.info("Force reingestion enabled - skipping data check")
             

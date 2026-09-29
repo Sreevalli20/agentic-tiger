@@ -621,9 +621,13 @@ class GraphService:
                 # Try corpus in backend directory first (Dockerfile copies it here)
                 corpus_path = backend_dir / "corpus_production.jsonl"
                 
-                # If not found, try in backend/app directory (Git location)
+                # If not found, try in backend/app directory (Git location, also copied by Dockerfile)
                 if not corpus_path.exists():
                     corpus_path = backend_dir / "app" / "corpus_production.jsonl"
+                
+                # If not found, try using current working directory
+                if not corpus_path.exists():
+                    corpus_path = Path.cwd() / "corpus_production.jsonl"
                 
                 # If not found, try in parent directory (for development)
                 if not corpus_path.exists():

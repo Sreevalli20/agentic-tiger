@@ -33,7 +33,7 @@ async def run_tigergraph_ingestion(force: bool = False):
         
         # Paths to corpus - use production corpus in backend directory
         # In Render, the working directory is /app (Docker WORKDIR = backend/)
-        # The Dockerfile copies corpus to /app/corpus_production.jsonl (backend root)
+        # The Dockerfile copies corpus to both /app/corpus_production.jsonl and /app/app/corpus_production.jsonl
         # Try multiple possible locations for the corpus file
         backend_dir = Path(__file__).parent.parent
         
@@ -45,20 +45,25 @@ async def run_tigergraph_ingestion(force: bool = False):
         corpus_path = backend_dir / "corpus_production.jsonl"
         logger.info(f"Checking path 1: {corpus_path}, exists: {corpus_path.exists()}")
         
-        # If not found, try in backend/app directory (Git location)
+        # If not found, try in backend/app directory (Git location, also copied by Dockerfile)
         if not corpus_path.exists():
             corpus_path = backend_dir / "app" / "corpus_production.jsonl"
             logger.info(f"Checking path 2: {corpus_path}, exists: {corpus_path.exists()}")
         
+        # If not found, try using current working directory
+        if not corpus_path.exists():
+            corpus_path = Path.cwd() / "corpus_production.jsonl"
+            logger.info(f"Checking path 3: {corpus_path}, exists: {corpus_path.exists()}")
+        
         # If not found, try in parent directory (for development)
         if not corpus_path.exists():
             corpus_path = backend_dir.parent / "corpus_production.jsonl"
-            logger.info(f"Checking path 3: {corpus_path}, exists: {corpus_path.exists()}")
+            logger.info(f"Checking path 4: {corpus_path}, exists: {corpus_path.exists()}")
         
         # If still not found, try in project root
         if not corpus_path.exists():
             corpus_path = backend_dir.parent.parent / "corpus_production.jsonl"
-            logger.info(f"Checking path 4: {corpus_path}, exists: {corpus_path.exists()}")
+            logger.info(f"Checking path 5: {corpus_path}, exists: {corpus_path.exists()}")
         
         questions_path = backend_dir.parent / "hackathon-resources" / "questions"
         

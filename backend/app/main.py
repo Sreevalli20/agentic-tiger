@@ -42,10 +42,40 @@ async def lifespan(app: FastAPI):
                 pass
     
     # Initialize TigerGraph graph if configured
-    # Note: Disabled automatic initialization to prevent startup issues
-    # Use /api/tigergraph/ingest endpoint to manually trigger ingestion
     if settings.tg_host and settings.tg_secret:
-        logger.info("TigerGraph configured - automatic initialization disabled, use /api/tigergraph/ingest endpoint")
+        logger.info("TigerGraph configured - attempting automatic initialization")
+        try:
+            from app.tigergraph.graph_service import GraphService
+            from pathlib import Path
+            
+            graph_service = GraphService()
+            
+            # Determine corpus path for initialization
+            backend_dir = Path(__file__).parent.parent
+            corpus_path = backend_dir / "corpus_production.jsonl"
+            
+            # Try multiple possible locations
+            if not corpus_path.exists():
+                corpus_path = backend_dir / "app" / "corpus_production.jsonl"
+            
+            if not corpus_path.exists():
+                corpus_path = backend_dir.parent / "corpus_production.jsonl"
+            
+            logger.info(f"Corpus path for TigerGraph initialization: {corpus_path}, exists: {corpus_path.exists()}")
+            
+            # Initialize graph if needed (idempotent)
+            if corpus_path.exists():
+                init_success = await graph_service.initialize_graph_if_needed(str(corpus_path))
+                if init_success:
+                    logger.info("TigerGraph automatic initialization completed successfully")
+                else:
+                    logger.warning("TigerGraph automatic initialization failed - will use endpoint for manual retry")
+            else:
+                logger.warning(f"Corpus file not found at {corpus_path} - skipping TigerGraph initialization")
+        except Exception as e:
+            logger.error(f"TigerGraph automatic initialization failed: {e}")
+            import traceback
+            traceback.print_exc()
     
     yield
     logger.info("Shutting down GraphProbe AI backend...")
