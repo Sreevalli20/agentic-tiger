@@ -438,7 +438,7 @@ class GraphService:
             return False
     
     async def initialize_graph_if_needed(self, corpus_path: str = None) -> bool:
-        """Initialize TigerGraph graph if it doesn't exist."""
+        """Initialize TigerGraph graph if it doesn't exist or is empty."""
         if not self.conn:
             logger.warning("Cannot initialize graph - no connection")
             return False
@@ -446,10 +446,29 @@ class GraphService:
         try:
             # Check if graph already exists
             if await self.check_graph_exists():
-                logger.info(f"Graph {settings.tg_graphname} already exists - skipping initialization")
-                return True
-            
-            logger.info(f"Graph {settings.tg_graphname} does not exist - initializing...")
+                logger.info(f"Graph {settings.tg_graphname} already exists")
+                
+                # Check if graph has data
+                try:
+                    vertex_counts = await asyncio.wait_for(
+                        asyncio.to_thread(self.conn.getVertexCount, '*'),
+                        timeout=5.0
+                    )
+                    logger.info(f"Graph vertex counts: {vertex_counts}")
+                    
+                    # Check if graph is empty (no vertices)
+                    total_vertices = sum(vertex_counts.values()) if vertex_counts else 0
+                    if total_vertices == 0:
+                        logger.warning("Graph exists but is empty - reinitializing")
+                    else:
+                        logger.info(f"Graph has {total_vertices} vertices - skipping initialization")
+                        return True
+                except Exception as count_error:
+                    logger.warning(f"Failed to get vertex counts: {count_error}")
+                    # If we can't check counts, assume graph is OK
+                    return True
+            else:
+                logger.info(f"Graph {settings.tg_graphname} does not exist - initializing...")
             
             # Use the ingestion pipeline to create schema and load data
             from app.tigergraph.ingestion import TigerGraphIngestion
