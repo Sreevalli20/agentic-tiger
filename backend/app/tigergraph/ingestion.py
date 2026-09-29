@@ -52,14 +52,23 @@ class TigerGraphIngestion:
             return False
         
         try:
-            logger.info("Creating TigerGraph schema...")
+            logger.info("Creating/checking TigerGraph schema...")
             
-            # Check if graph already exists
+            # Check if graph already exists and has the expected schema
             try:
                 schema = self.conn.getSchema()
                 if schema and len(schema.get("VertexTypes", [])) > 0:
-                    logger.info(f"Graph {settings.tg_graphname} already exists with schema - skipping creation")
-                    return True
+                    vertex_types = {vt['Name'] for vt in schema.get("VertexTypes", [])}
+                    expected_vertices = {'Document', 'Event', 'Athlete', 'Nation', 'Venue', 'Games', 'Sport'}
+                    
+                    # Check if we have the expected Olympic schema
+                    if expected_vertices.issubset(vertex_types):
+                        logger.info(f"Graph {settings.tg_graphname} already exists with Olympic schema - skipping creation")
+                        return True
+                    else:
+                        logger.info(f"Graph exists but schema differs. Expected: {expected_vertices}, Found: {vertex_types}")
+                        logger.info("Will attempt to use existing schema for data ingestion")
+                        return True
             except Exception as check_error:
                 logger.info(f"Graph existence check failed (expected if graph doesn't exist): {check_error}")
             
@@ -515,7 +524,7 @@ class TigerGraphIngestion:
         return noc_map.get(noc, noc)
     
     def run_full_ingestion(self, corpus_path: str, questions_path: str) -> Dict[str, Any]:
-        """Run the complete ingestion pipeline."""
+        """Run the complete ingestion pipeline idempotently."""
         start_time = time.time()
         results = {
             'status': 'started',
@@ -532,7 +541,7 @@ class TigerGraphIngestion:
             
             results['steps']['load_dataset'] = 'completed'
             
-            # Step 2: Create schema
+            # Step 2: Create schema (idempotent)
             if not self.create_schema():
                 results['status'] = 'failed'
                 results['errors'].append('Failed to create schema')
@@ -540,7 +549,29 @@ class TigerGraphIngestion:
             
             results['steps']['create_schema'] = 'completed'
             
-            # Step 3: Ingest vertices
+            # Step 3: Check if graph already has data
+            try:
+                vertex_counts = self.conn.getVertexCount('*')
+                total_vertices = sum(vertex_counts.values()) if vertex_counts else 0
+                logger.info(f"Current vertex counts: {vertex_counts}, Total: {total_vertices}")
+                
+                # If graph already has substantial data, skip re-ingestion
+                if total_vertices > 100:
+                    logger.info(f"Graph already has {total_vertices} vertices - skipping data ingestion")
+                    results['status'] = 'skipped'
+                    results['message'] = 'Graph already contains data'
+                    results['vertex_counts'] = vertex_counts
+                    try:
+                        edge_counts = self.conn.getEdgeCount('*')
+                        results['edge_counts'] = edge_counts
+                    except:
+                        pass
+                    results['duration_seconds'] = time.time() - start_time
+                    return results
+            except Exception as count_error:
+                logger.warning(f"Failed to check existing vertex counts: {count_error}")
+            
+            # Step 4: Ingest vertices
             results['steps']['ingest_documents'] = self.ingest_documents()
             results['steps']['ingest_events'] = self.ingest_events()
             results['steps']['ingest_athletes'] = self.ingest_athletes()
@@ -549,15 +580,17 @@ class TigerGraphIngestion:
             results['steps']['ingest_games'] = self.ingest_games()
             results['steps']['ingest_sports'] = self.ingest_sports()
             
-            # Step 4: Ingest edges
+            # Step 5: Ingest edges
             results['steps']['ingest_edges'] = self.ingest_edges()
             
-            # Step 5: Get vertex/edge counts
+            # Step 6: Get vertex/edge counts
             try:
                 vertex_counts = self.conn.getVertexCount('*')
                 edge_counts = self.conn.getEdgeCount('*')
                 results['vertex_counts'] = vertex_counts
                 results['edge_counts'] = edge_counts
+                logger.info(f"Final vertex counts: {vertex_counts}")
+                logger.info(f"Final edge counts: {edge_counts}")
             except Exception as e:
                 logger.error(f"Failed to get counts: {e}")
                 results['errors'].append(f"Failed to get counts: {e}")

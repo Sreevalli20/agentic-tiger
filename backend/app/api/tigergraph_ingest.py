@@ -29,9 +29,10 @@ async def run_tigergraph_ingestion():
             )
         
         # Paths to corpus - use production corpus in backend directory
-        project_root = Path(__file__).parent.parent.parent
-        corpus_path = project_root / "corpus_production.jsonl"
-        questions_path = project_root / "hackathon-resources" / "questions"
+        # In Render, the backend directory is the working directory
+        backend_dir = Path(__file__).parent.parent
+        corpus_path = backend_dir / "corpus_production.jsonl"
+        questions_path = backend_dir.parent / "hackathon-resources" / "questions"
         
         # Verify corpus exists
         if not corpus_path.exists():

@@ -161,7 +161,7 @@ class GraphService:
             )
     
     async def _traverse_graph_async(self, entities: List[str], max_hops: int) -> GraphContext:
-        """Traverse graph using async connection."""
+        """Traverse graph using async connection with robust schema adaptation."""
         try:
             # Get schema with timeout
             schema = await asyncio.wait_for(
@@ -179,13 +179,29 @@ class GraphService:
                     timeout=5.0
                 )
                 logger.info(f"Vertex counts: {vertex_counts}")
+                total_vertices = sum(vertex_counts.values()) if vertex_counts else 0
+                if total_vertices == 0:
+                    logger.warning("Graph is empty - no data to traverse")
+                    return GraphContext(
+                        entities=entities,
+                        relationships=[],
+                        traversal_depth=0,
+                        nodes_visited=0,
+                        edges_traversed=0
+                    )
             except Exception as count_error:
                 logger.warning(f"Failed to get vertex counts: {count_error}")
             
-            # Try to run Olympic-specific queries based on entities
             relationships = []
             nodes_visited = 0
             edges_traversed = 0
+            
+            # Get available vertex and edge types
+            vertex_types = [vt['Name'] for vt in schema.get('VertexTypes', [])]
+            edge_types = [et['Name'] for et in schema.get('EdgeTypes', [])]
+            
+            logger.info(f"Available vertex types: {vertex_types}")
+            logger.info(f"Available edge types: {edge_types}")
             
             # Extract year from entities if present
             year_entity = None
@@ -198,91 +214,131 @@ class GraphService:
                 elif any(keyword in entity.lower() for keyword in ['walk', 'athletics', 'kilometres', 'km']):
                     event_keywords.append(entity)
             
-            # Try Olympic-specific query pattern for medalists
-            if year_entity and year_entity.isdigit():
-                year = int(year_entity)
-                
-                # Try multiple query patterns to handle different schemas
-                queries_to_try = []
-                
-                # Query 1: Standard Olympic schema (Games -> Event -> Athlete)
-                if event_keywords:
-                    keyword_query = ' OR '.join([f't1.name CONTAINS "{kw}"' for kw in event_keywords])
-                    queries_to_try.append(f'''
-                    SELECT t1.name, t3.name, e.medal_type
-                    FROM Games:t - (EVENT_PART_OF_GAMES) <- Event:t1 - (ATHLETE_WON_MEDAL_IN_EVENT:e) <- Athlete:t3
-                    WHERE t.year == {year} AND ({keyword_query}) AND e.medal_type == "gold"
-                    LIMIT 10
-                    ''')
-                else:
-                    queries_to_try.append(f'''
-                    SELECT t1.name, t3.name, e.medal_type
-                    FROM Games:t - (EVENT_PART_OF_GAMES) <- Event:t1 - (ATHLETE_WON_MEDAL_IN_EVENT:e) <- Athlete:t3
-                    WHERE t.year == {year} AND e.medal_type == "gold"
-                    LIMIT 10
-                    ''')
-                
-                # Query 2: Simple Event vertex query (fallback)
-                queries_to_try.append(f'''
-                SELECT * FROM Event WHERE year == {year} LIMIT 10
-                ''')
-                
-                # Query 3: Any vertex query (fallback)
-                queries_to_try.append('SELECT * FROM * LIMIT 5')
-                
-                for query in queries_to_try:
-                    try:
-                        result = await asyncio.wait_for(
-                            self.async_conn.runInterpretedQuery(query),
-                            timeout=settings.operation_timeout_seconds
-                        )
-                        
-                        if result and len(result) > 0:
-                            nodes_visited = len(result)
-                            for record in result:
-                                if isinstance(record, dict):
-                                    relationships.append({
-                                        "source": str(record.get("name", record.get("t1.name", "event"))),
-                                        "target": str(record.get("athlete", record.get("t3.name", "unknown"))),
-                                        "type": "GRAPH_RESULT",
-                                        "weight": 0.95
-                                    })
-                                    edges_traversed += 1
-                            logger.info(f"Query returned {len(result)} results")
-                            break
-                    except Exception as query_error:
-                        logger.warning(f"Query failed: {query_error}")
-                        continue
+            # Try to run queries based on actual schema
+            queries_to_try = []
             
-            # Fallback to generic vertex query if no relationships found
-            if not relationships:
-                vertex_types = schema.get("VertexTypes", [])
-                if vertex_types:
-                    # Try Event vertex first for Olympic data
-                    event_vertex = None
-                    for vt in vertex_types:
-                        if vt["Name"] == "Event":
-                            event_vertex = vt
-                            break
+            # If we have Olympic schema, use Olympic-specific queries
+            if 'Event' in vertex_types and 'Athlete' in vertex_types:
+                if year_entity and year_entity.isdigit():
+                    year = int(year_entity)
                     
-                    vertex_type = event_vertex["Name"] if event_vertex else vertex_types[0]["Name"]
-                    query = f'SELECT * FROM {vertex_type} LIMIT 5'
+                    # Query 1: Event vertices filtered by year
+                    queries_to_try.append(f'SELECT * FROM Event WHERE year == {year} LIMIT 10')
+                    
+                    # Query 2: If we have Games vertex, try Games->Event traversal
+                    if 'Games' in vertex_types:
+                        queries_to_try.append(f'''
+                        SELECT t1.name, t1.year, t1.sport
+                        FROM Games:t - (EVENT_PART_OF_GAMES) <- Event:t1
+                        WHERE t.year == {year}
+                        LIMIT 10
+                        ''')
+                    
+                    # Query 3: If we have Athlete and edges, try medalist query
+                    if 'ATHLETE_WON_MEDAL_IN_EVENT' in edge_types:
+                        if event_keywords:
+                            keyword_query = ' OR '.join([f't1.name CONTAINS "{kw}"' for kw in event_keywords])
+                            queries_to_try.append(f'''
+                            SELECT t1.name, t3.name, e.medal_type
+                            FROM Event:t1 - (ATHLETE_WON_MEDAL_IN_EVENT:e) <- Athlete:t3
+                            WHERE t1.year == {year} AND ({keyword_query}) AND e.medal_type == "gold"
+                            LIMIT 10
+                            ''')
+                        else:
+                            queries_to_try.append(f'''
+                            SELECT t1.name, t3.name, e.medal_type
+                            FROM Event:t1 - (ATHLETE_WON_MEDAL_IN_EVENT:e) <- Athlete:t3
+                            WHERE t1.year == {year} AND e.medal_type == "gold"
+                            LIMIT 10
+                            ''')
+            
+            # Fallback queries for any schema
+            queries_to_try.append('SELECT * FROM * LIMIT 5')
+            
+            # Try each query
+            for query in queries_to_try:
+                try:
+                    logger.info(f"Trying query: {query[:100]}...")
                     result = await asyncio.wait_for(
                         self.async_conn.runInterpretedQuery(query),
                         timeout=settings.operation_timeout_seconds
                     )
                     
                     if result and len(result) > 0:
+                        logger.info(f"Query returned {len(result)} results")
                         nodes_visited = len(result)
-                        for i, record in enumerate(result):
+                        
+                        # Process results into relationships
+                        for record in result:
                             if isinstance(record, dict):
-                                relationships.append({
-                                    "source": str(record.get("name", record.get("primary_id", f"node_{i}"))),
-                                    "target": "related_entity",
-                                    "type": "CONNECTED_TO",
-                                    "weight": 0.8
-                                })
-                                edges_traversed += 1
+                                # Extract relevant fields from the result
+                                source = None
+                                target = None
+                                edge_type = "CONNECTED_TO"
+                                
+                                # Try common field names
+                                for field in ['name', 't1.name', 'event_name', 'primary_id']:
+                                    if field in record and record[field]:
+                                        source = str(record[field])
+                                        break
+                                
+                                for field in ['athlete', 't3.name', 'target', 'related']:
+                                    if field in record and record[field]:
+                                        target = str(record[field])
+                                        break
+                                
+                                # If we have medal_type, use it
+                                if 'medal_type' in record:
+                                    edge_type = f"WON_{record['medal_type'].upper()}"
+                                
+                                if source:
+                                    relationships.append({
+                                        "source": source,
+                                        "target": target or "related_entity",
+                                        "type": edge_type,
+                                        "weight": 0.95
+                                    })
+                                    edges_traversed += 1
+                        
+                        if relationships:
+                            logger.info(f"Successfully extracted {len(relationships)} relationships")
+                            break
+                except Exception as query_error:
+                    logger.warning(f"Query failed: {query_error}")
+                    continue
+            
+            # If still no relationships, try direct vertex lookup
+            if not relationships and vertex_types:
+                for vertex_type in vertex_types[:3]:  # Try first 3 vertex types
+                    try:
+                        query = f'SELECT * FROM {vertex_type} LIMIT 3'
+                        result = await asyncio.wait_for(
+                            self.async_conn.runInterpretedQuery(query),
+                            timeout=settings.operation_timeout_seconds
+                        )
+                        
+                        if result and len(result) > 0:
+                            logger.info(f"Direct vertex lookup on {vertex_type} returned {len(result)} results")
+                            nodes_visited += len(result)
+                            
+                            for i, record in enumerate(result):
+                                if isinstance(record, dict):
+                                    source = str(record.get("name", record.get("primary_id", f"{vertex_type}_{i}")))
+                                    relationships.append({
+                                        "source": source,
+                                        "target": f"{vertex_type}_entity",
+                                        "type": "VERTEX_INSTANCE",
+                                        "weight": 0.7
+                                    })
+                                    edges_traversed += 1
+                            
+                            if relationships:
+                                break
+                    except Exception as vertex_error:
+                        logger.warning(f"Vertex lookup on {vertex_type} failed: {vertex_error}")
+                        continue
+            
+            logger.info(f"Graph traversal complete: {nodes_visited} nodes, {edges_traversed} edges, {len(relationships)} relationships")
             
             return GraphContext(
                 entities=entities,
@@ -303,7 +359,7 @@ class GraphService:
             )
     
     async def _traverse_graph_sync(self, entities: List[str], max_hops: int) -> GraphContext:
-        """Traverse graph using sync connection with asyncio.to_thread."""
+        """Traverse graph using sync connection with asyncio.to_thread - mirrors async logic."""
         try:
             # Get schema with timeout
             schema = await asyncio.wait_for(
@@ -321,12 +377,29 @@ class GraphService:
                     timeout=5.0
                 )
                 logger.info(f"Vertex counts: {vertex_counts}")
+                total_vertices = sum(vertex_counts.values()) if vertex_counts else 0
+                if total_vertices == 0:
+                    logger.warning("Graph is empty - no data to traverse")
+                    return GraphContext(
+                        entities=entities,
+                        relationships=[],
+                        traversal_depth=0,
+                        nodes_visited=0,
+                        edges_traversed=0
+                    )
             except Exception as count_error:
                 logger.warning(f"Failed to get vertex counts: {count_error}")
             
             relationships = []
             nodes_visited = 0
             edges_traversed = 0
+            
+            # Get available vertex and edge types
+            vertex_types = [vt['Name'] for vt in schema.get('VertexTypes', [])]
+            edge_types = [et['Name'] for et in schema.get('EdgeTypes', [])]
+            
+            logger.info(f"Available vertex types: {vertex_types}")
+            logger.info(f"Available edge types: {edge_types}")
             
             # Extract year from entities if present
             year_entity = None
@@ -339,91 +412,131 @@ class GraphService:
                 elif any(keyword in entity.lower() for keyword in ['walk', 'athletics', 'kilometres', 'km']):
                     event_keywords.append(entity)
             
-            # Try Olympic-specific query pattern for medalists
-            if year_entity and year_entity.isdigit():
-                year = int(year_entity)
-                
-                # Try multiple query patterns to handle different schemas
-                queries_to_try = []
-                
-                # Query 1: Standard Olympic schema (Games -> Event -> Athlete)
-                if event_keywords:
-                    keyword_query = ' OR '.join([f't1.name CONTAINS "{kw}"' for kw in event_keywords])
-                    queries_to_try.append(f'''
-                    SELECT t1.name, t3.name, e.medal_type
-                    FROM Games:t - (EVENT_PART_OF_GAMES) <- Event:t1 - (ATHLETE_WON_MEDAL_IN_EVENT:e) <- Athlete:t3
-                    WHERE t.year == {year} AND ({keyword_query}) AND e.medal_type == "gold"
-                    LIMIT 10
-                    ''')
-                else:
-                    queries_to_try.append(f'''
-                    SELECT t1.name, t3.name, e.medal_type
-                    FROM Games:t - (EVENT_PART_OF_GAMES) <- Event:t1 - (ATHLETE_WON_MEDAL_IN_EVENT:e) <- Athlete:t3
-                    WHERE t.year == {year} AND e.medal_type == "gold"
-                    LIMIT 10
-                    ''')
-                
-                # Query 2: Simple Event vertex query (fallback)
-                queries_to_try.append(f'''
-                SELECT * FROM Event WHERE year == {year} LIMIT 10
-                ''')
-                
-                # Query 3: Any vertex query (fallback)
-                queries_to_try.append('SELECT * FROM * LIMIT 5')
-                
-                for query in queries_to_try:
-                    try:
-                        result = await asyncio.wait_for(
-                            asyncio.to_thread(self.conn.runInterpretedQuery, query),
-                            timeout=settings.operation_timeout_seconds
-                        )
-                        
-                        if result and len(result) > 0:
-                            nodes_visited = len(result)
-                            for record in result:
-                                if isinstance(record, dict):
-                                    relationships.append({
-                                        "source": str(record.get("name", record.get("t1.name", "event"))),
-                                        "target": str(record.get("athlete", record.get("t3.name", "unknown"))),
-                                        "type": "GRAPH_RESULT",
-                                        "weight": 0.95
-                                    })
-                                    edges_traversed += 1
-                            logger.info(f"Query returned {len(result)} results")
-                            break
-                    except Exception as query_error:
-                        logger.warning(f"Query failed: {query_error}")
-                        continue
+            # Try to run queries based on actual schema
+            queries_to_try = []
             
-            # Fallback to generic vertex query if no relationships found
-            if not relationships:
-                vertex_types = schema.get("VertexTypes", [])
-                if vertex_types:
-                    # Try Event vertex first for Olympic data
-                    event_vertex = None
-                    for vt in vertex_types:
-                        if vt["Name"] == "Event":
-                            event_vertex = vt
-                            break
+            # If we have Olympic schema, use Olympic-specific queries
+            if 'Event' in vertex_types and 'Athlete' in vertex_types:
+                if year_entity and year_entity.isdigit():
+                    year = int(year_entity)
                     
-                    vertex_type = event_vertex["Name"] if event_vertex else vertex_types[0]["Name"]
-                    query = f'SELECT * FROM {vertex_type} LIMIT 5'
+                    # Query 1: Event vertices filtered by year
+                    queries_to_try.append(f'SELECT * FROM Event WHERE year == {year} LIMIT 10')
+                    
+                    # Query 2: If we have Games vertex, try Games->Event traversal
+                    if 'Games' in vertex_types:
+                        queries_to_try.append(f'''
+                        SELECT t1.name, t1.year, t1.sport
+                        FROM Games:t - (EVENT_PART_OF_GAMES) <- Event:t1
+                        WHERE t.year == {year}
+                        LIMIT 10
+                        ''')
+                    
+                    # Query 3: If we have Athlete and edges, try medalist query
+                    if 'ATHLETE_WON_MEDAL_IN_EVENT' in edge_types:
+                        if event_keywords:
+                            keyword_query = ' OR '.join([f't1.name CONTAINS "{kw}"' for kw in event_keywords])
+                            queries_to_try.append(f'''
+                            SELECT t1.name, t3.name, e.medal_type
+                            FROM Event:t1 - (ATHLETE_WON_MEDAL_IN_EVENT:e) <- Athlete:t3
+                            WHERE t1.year == {year} AND ({keyword_query}) AND e.medal_type == "gold"
+                            LIMIT 10
+                            ''')
+                        else:
+                            queries_to_try.append(f'''
+                            SELECT t1.name, t3.name, e.medal_type
+                            FROM Event:t1 - (ATHLETE_WON_MEDAL_IN_EVENT:e) <- Athlete:t3
+                            WHERE t1.year == {year} AND e.medal_type == "gold"
+                            LIMIT 10
+                            ''')
+            
+            # Fallback queries for any schema
+            queries_to_try.append('SELECT * FROM * LIMIT 5')
+            
+            # Try each query
+            for query in queries_to_try:
+                try:
+                    logger.info(f"Trying query: {query[:100]}...")
                     result = await asyncio.wait_for(
                         asyncio.to_thread(self.conn.runInterpretedQuery, query),
                         timeout=settings.operation_timeout_seconds
                     )
                     
                     if result and len(result) > 0:
+                        logger.info(f"Query returned {len(result)} results")
                         nodes_visited = len(result)
-                        for i, record in enumerate(result):
+                        
+                        # Process results into relationships
+                        for record in result:
                             if isinstance(record, dict):
-                                relationships.append({
-                                    "source": str(record.get("name", record.get("primary_id", f"node_{i}"))),
-                                    "target": "related_entity",
-                                    "type": "CONNECTED_TO",
-                                    "weight": 0.8
-                                })
-                                edges_traversed += 1
+                                # Extract relevant fields from the result
+                                source = None
+                                target = None
+                                edge_type = "CONNECTED_TO"
+                                
+                                # Try common field names
+                                for field in ['name', 't1.name', 'event_name', 'primary_id']:
+                                    if field in record and record[field]:
+                                        source = str(record[field])
+                                        break
+                                
+                                for field in ['athlete', 't3.name', 'target', 'related']:
+                                    if field in record and record[field]:
+                                        target = str(record[field])
+                                        break
+                                
+                                # If we have medal_type, use it
+                                if 'medal_type' in record:
+                                    edge_type = f"WON_{record['medal_type'].upper()}"
+                                
+                                if source:
+                                    relationships.append({
+                                        "source": source,
+                                        "target": target or "related_entity",
+                                        "type": edge_type,
+                                        "weight": 0.95
+                                    })
+                                    edges_traversed += 1
+                        
+                        if relationships:
+                            logger.info(f"Successfully extracted {len(relationships)} relationships")
+                            break
+                except Exception as query_error:
+                    logger.warning(f"Query failed: {query_error}")
+                    continue
+            
+            # If still no relationships, try direct vertex lookup
+            if not relationships and vertex_types:
+                for vertex_type in vertex_types[:3]:  # Try first 3 vertex types
+                    try:
+                        query = f'SELECT * FROM {vertex_type} LIMIT 3'
+                        result = await asyncio.wait_for(
+                            asyncio.to_thread(self.conn.runInterpretedQuery, query),
+                            timeout=settings.operation_timeout_seconds
+                        )
+                        
+                        if result and len(result) > 0:
+                            logger.info(f"Direct vertex lookup on {vertex_type} returned {len(result)} results")
+                            nodes_visited += len(result)
+                            
+                            for i, record in enumerate(result):
+                                if isinstance(record, dict):
+                                    source = str(record.get("name", record.get("primary_id", f"{vertex_type}_{i}")))
+                                    relationships.append({
+                                        "source": source,
+                                        "target": f"{vertex_type}_entity",
+                                        "type": "VERTEX_INSTANCE",
+                                        "weight": 0.7
+                                    })
+                                    edges_traversed += 1
+                            
+                            if relationships:
+                                break
+                    except Exception as vertex_error:
+                        logger.warning(f"Vertex lookup on {vertex_type} failed: {vertex_error}")
+                        continue
+            
+            logger.info(f"Graph traversal complete: {nodes_visited} nodes, {edges_traversed} edges, {len(relationships)} relationships")
             
             return GraphContext(
                 entities=entities,
@@ -500,7 +613,7 @@ class GraphService:
             
             # Determine corpus path
             if corpus_path is None:
-                backend_dir = Path(__file__).parent.parent.parent
+                backend_dir = Path(__file__).parent.parent
                 corpus_path = str(backend_dir / "corpus_production.jsonl")
             
             # Check if corpus file exists
