@@ -46,8 +46,8 @@ class Settings(BaseSettings):
     max_agent_iterations: int = 3
     evidence_sufficiency_threshold: float = 0.8
     max_token_budget: int = 10000
-    agentic_timeout_seconds: int = 20
-    operation_timeout_seconds: int = 5
+    agentic_timeout_seconds: int = 30
+    operation_timeout_seconds: int = 10
     
     # Benchmark Configuration
     benchmark_output_path: str = "./evaluation/results"

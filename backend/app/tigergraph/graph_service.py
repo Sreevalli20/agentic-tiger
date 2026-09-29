@@ -191,20 +191,22 @@ class GraphService:
                 year = int(year_entity)
                 
                 # Query for events with specific keywords in that year
+                # Correct path: Games -> Event -> Athlete (using reverse edges)
+                # medal_type is on the ATHLETE_WON_MEDAL_IN_EVENT edge
                 if event_keywords:
                     keyword_query = ' OR '.join([f't1.name CONTAINS "{kw}"' for kw in event_keywords])
                     query = f'''
                     SELECT t1.name, t3.name, t2.medal_type
-                    FROM Event:t1 - (EVENT_PART_OF_GAMES) -> Games:t2 - (ATHLETE_WON_MEDAL_IN_EVENT) <- Athlete:t3
-                    WHERE t2.year == {year} AND ({keyword_query}) AND t2.medal_type == "gold"
+                    FROM Games:t - (EVENT_PART_OF_GAMES) <- Event:t1 - (ATHLETE_WON_MEDAL_IN_EVENT:e) <- Athlete:t3
+                    WHERE t.year == {year} AND ({keyword_query}) AND e.medal_type == "gold"
                     LIMIT 10
                     '''
                 else:
                     # General query for events in that year
                     query = f'''
-                    SELECT t1.name, t3.name, t2.medal_type
-                    FROM Event:t1 - (EVENT_PART_OF_GAMES) -> Games:t2 - (ATHLETE_WON_MEDAL_IN_EVENT) <- Athlete:t3
-                    WHERE t2.year == {year} AND t2.medal_type == "gold"
+                    SELECT t1.name, t3.name, e.medal_type
+                    FROM Games:t - (EVENT_PART_OF_GAMES) <- Event:t1 - (ATHLETE_WON_MEDAL_IN_EVENT:e) <- Athlete:t3
+                    WHERE t.year == {year} AND e.medal_type == "gold"
                     LIMIT 10
                     '''
                 
@@ -307,20 +309,22 @@ class GraphService:
                 year = int(year_entity)
                 
                 # Query for events with specific keywords in that year
+                # Correct path: Games -> Event -> Athlete (using reverse edges)
+                # medal_type is on the ATHLETE_WON_MEDAL_IN_EVENT edge
                 if event_keywords:
                     keyword_query = ' OR '.join([f't1.name CONTAINS "{kw}"' for kw in event_keywords])
                     query = f'''
                     SELECT t1.name, t3.name, t2.medal_type
-                    FROM Event:t1 - (EVENT_PART_OF_GAMES) -> Games:t2 - (ATHLETE_WON_MEDAL_IN_EVENT) <- Athlete:t3
-                    WHERE t2.year == {year} AND ({keyword_query}) AND t2.medal_type == "gold"
+                    FROM Games:t - (EVENT_PART_OF_GAMES) <- Event:t1 - (ATHLETE_WON_MEDAL_IN_EVENT:e) <- Athlete:t3
+                    WHERE t.year == {year} AND ({keyword_query}) AND e.medal_type == "gold"
                     LIMIT 10
                     '''
                 else:
                     # General query for events in that year
                     query = f'''
-                    SELECT t1.name, t3.name, t2.medal_type
-                    FROM Event:t1 - (EVENT_PART_OF_GAMES) -> Games:t2 - (ATHLETE_WON_MEDAL_IN_EVENT) <- Athlete:t3
-                    WHERE t2.year == {year} AND t2.medal_type == "gold"
+                    SELECT t1.name, t3.name, e.medal_type
+                    FROM Games:t - (EVENT_PART_OF_GAMES) <- Event:t1 - (ATHLETE_WON_MEDAL_IN_EVENT:e) <- Athlete:t3
+                    WHERE t.year == {year} AND e.medal_type == "gold"
                     LIMIT 10
                     '''
                 
@@ -439,18 +443,20 @@ class GraphService:
                 logger.error(f"Corpus file not found: {corpus_path}")
                 return False
             
-            # Create schema
-            if not ingestion.create_schema():
+            # Create schema (run in thread since it's sync)
+            schema_created = await asyncio.to_thread(ingestion.create_schema)
+            if not schema_created:
                 logger.error("Failed to create TigerGraph schema")
                 return False
             
-            # Load and ingest corpus
-            if not ingestion.load_dataset(corpus_path, ""):
+            # Load and ingest corpus (run in thread since it's sync)
+            dataset_loaded = await asyncio.to_thread(ingestion.load_dataset, corpus_path, "")
+            if not dataset_loaded:
                 logger.error("Failed to load corpus")
                 return False
             
-            # Ingest all data
-            results = {
+            # Ingest all data (run in thread since it's sync)
+            results = await asyncio.to_thread(lambda: {
                 'documents': ingestion.ingest_documents(),
                 'events': ingestion.ingest_events(),
                 'athletes': ingestion.ingest_athletes(),
@@ -459,7 +465,7 @@ class GraphService:
                 'games': ingestion.ingest_games(),
                 'sports': ingestion.ingest_sports(),
                 'edges': ingestion.ingest_edges()
-            }
+            })
             
             logger.info(f"Graph initialization completed: {results}")
             

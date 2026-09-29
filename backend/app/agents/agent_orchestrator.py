@@ -140,13 +140,8 @@ class AgentOrchestrator:
             except asyncio.TimeoutError:
                 logger.warning(f"Action {action} timed out after {settings.operation_timeout_seconds}s")
                 step_result = {"summary": f"Action {action} timed out", "tokens": 0}
-                # For graph traversal timeout, continue to evaluation instead of stopping
-                if action == ToolType.GRAPH_TRAVERSE:
-                    logger.info("Graph traversal timed out - continuing to evidence evaluation")
-                    # Don't set stopping_reason, allow pipeline to continue
-                else:
-                    state.stopping_reason = f"Operation timeout: {action}"
-                    break
+                state.stopping_reason = f"Operation timeout: {action}"
+                break
             
             # Update state
             await self._update_state(state, step_result)
@@ -177,11 +172,14 @@ class AgentOrchestrator:
         elif not state.graph_entities:
             # No entities yet: extract them
             return ToolType.ENTITY_LINK
+        elif ToolType.GRAPH_TRAVERSE not in state.tools_used and state.graph_entities:
+            # Have entities but haven't traversed graph yet: do graph traversal
+            return ToolType.GRAPH_TRAVERSE
         elif len(state.evidence) < 3:
             # Need more evidence: vector search
             return ToolType.VECTOR_SEARCH
         else:
-            # Have evidence - evaluate if sufficient (skip graph traversal)
+            # Have evidence - evaluate if sufficient
             return ToolType.EVALUATE_EVIDENCE
     
     async def _execute_action(self, state: AgentState, action: ToolType) -> Dict[str, Any]:
