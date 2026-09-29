@@ -30,7 +30,11 @@ class Settings(BaseSettings):
     # Application Configuration
     app_host: str = "0.0.0.0"
     app_port: int = 8000
-    cors_origins: List[str] = ["http://localhost:3000", "http://localhost:5173", "https://frontend-81rdtgomo-siris-projects-3809a50.vercel.app"]
+    cors_origins: List[str] = [
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "https://frontend-81rdtgomo-siris-projects-3809a50.vercel.app"
+    ]
     
     # Data Configuration
     data_path: str = "./data"
@@ -39,7 +43,7 @@ class Settings(BaseSettings):
     top_k_retrieval: int = 5
     
     # Agent Configuration
-    max_agent_iterations: int = 3
+    max_agent_iterations: int = 2
     evidence_sufficiency_threshold: float = 0.8
     max_token_budget: int = 10000
     agentic_timeout_seconds: int = 20
