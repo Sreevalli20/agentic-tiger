@@ -241,8 +241,8 @@ class AgentOrchestrator:
     
     async def _action_evaluate_evidence(self, state: AgentState) -> Dict[str, Any]:
         """Evaluate evidence sufficiency with explicit criteria."""
-        # Explicit evidence sufficiency criteria
-        evidence_sufficient = self._check_evidence_sufficiency(state)
+        # Only evaluate as sufficient if we've done graph traversal first
+        evidence_sufficient = self._check_evidence_sufficiency(state) and ToolType.GRAPH_TRAVERSE in state.tools_used
         
         if evidence_sufficient:
             state.confidence = 1.0
@@ -310,6 +310,10 @@ class AgentOrchestrator:
     
     async def _should_stop(self, state: AgentState) -> tuple[bool, str]:
         """Determine if agent should stop with explicit criteria."""
+        # Only stop if we've done graph traversal
+        if ToolType.GRAPH_TRAVERSE not in state.tools_used:
+            return False, ""
+        
         # Check explicit evidence sufficiency first
         if self._check_evidence_sufficiency(state):
             return True, "Sufficient evidence collected with explicit criteria"
@@ -317,12 +321,6 @@ class AgentOrchestrator:
         # Stop if evidence is sufficient via confidence threshold
         if state.confidence >= settings.evidence_sufficiency_threshold:
             return True, f"Evidence sufficiency ({state.confidence:.2f}) meets threshold ({settings.evidence_sufficiency_threshold})"
-        
-        # Early stop for simple factual questions - if we have good evidence after iteration 1
-        if state.iteration == 1 and len(state.evidence) > 0:
-            best_evidence_score = max(ev.metadata.confidence for ev in state.evidence)
-            if best_evidence_score > 0.7:
-                return True, f"Simple factual question answered with high confidence ({best_evidence_score:.2f}) after iteration 1"
         
         # Stop if max iterations reached
         if state.iteration >= settings.max_agent_iterations:
