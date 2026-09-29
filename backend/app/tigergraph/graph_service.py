@@ -22,6 +22,7 @@ class GraphService:
     def __init__(self):
         """Initialize TigerGraph service."""
         self.conn = None
+        self.async_conn = None
         self._initialize()
     
     def _initialize(self):
@@ -29,9 +30,11 @@ class GraphService:
         try:
             try:
                 from pyTigerGraph import TigerGraphConnection
+                from pyTigerGraph.async_ import AsyncTigerGraphConnection
             except ImportError:
                 logger.warning("pyTigerGraph not available - TigerGraph features will be disabled")
                 self.conn = None
+                self.async_conn = None
                 return
             
             # Ensure host includes protocol
@@ -39,16 +42,26 @@ class GraphService:
             if not host.startswith(('http://', 'https://')):
                 host = f'http://{host}'
             
+            # Initialize both sync and async connections
             self.conn = TigerGraphConnection(
                 host=host,
                 restppPort=settings.tg_port,
                 gsqlSecret=settings.tg_secret,
                 graphname=settings.tg_graphname
             )
+            
+            self.async_conn = AsyncTigerGraphConnection(
+                host=host,
+                restppPort=settings.tg_port,
+                gsqlSecret=settings.tg_secret,
+                graphname=settings.tg_graphname
+            )
+            
             logger.info("TigerGraph connection initialized")
         except Exception as e:
             logger.error(f"Failed to initialize TigerGraph connection: {e}")
             self.conn = None
+            self.async_conn = None
     
     async def extract_entities(self, text: str) -> List[str]:
         """Extract entities from text using improved heuristics."""
@@ -93,93 +106,15 @@ class GraphService:
             )
         
         try:
-            # Try to run actual TigerGraph queries with timeout protection
-            # First, check if the graph exists and get its schema
-            try:
-                # Run getSchema in a thread with timeout to prevent blocking
-                schema = await asyncio.wait_for(
-                    asyncio.to_thread(self.conn.getSchema),
-                    timeout=settings.operation_timeout_seconds
-                )
-                logger.info(f"Connected to graph with schema: {schema}")
-                
-                # Try to run a simple query to verify connectivity
-                # This will vary based on the actual Transaction_Fraud schema
-                # For now, we'll attempt a generic vertex query
-                
-                # Since we don't know the exact schema of Transaction_Fraud,
-                # we'll try to get vertex types and run a basic query
-                vertex_types = schema.get("VertexTypes", [])
-                
-                if vertex_types:
-                    # Try to query the first vertex type to get some data
-                    vertex_type = vertex_types[0]["Name"]
-                    logger.info(f"Attempting to query vertex type: {vertex_type}")
-                    
-                    # Run a simple query to get some vertices with timeout
-                    query = f'SELECT * FROM {vertex_type} LIMIT 5'
-                    result = await asyncio.wait_for(
-                        asyncio.to_thread(self.conn.runInterpretedQuery, query),
-                        timeout=settings.operation_timeout_seconds
-                    )
-                    
-                    logger.info(f"Graph query returned results: {len(result) if result else 0} records")
-                    
-                    # Parse results into relationships
-                    relationships = []
-                    nodes_visited = 0
-                    edges_traversed = 0
-                    
-                    if result and len(result) > 0:
-                        nodes_visited = len(result)
-                        # Create mock relationships based on the actual data structure
-                        for i, record in enumerate(result):
-                            if isinstance(record, dict):
-                                relationships.append({
-                                    "source": str(record.get("primary_id", f"node_{i}")),
-                                    "target": "related_entity",
-                                    "type": "CONNECTED_TO",
-                                    "weight": 0.8
-                                })
-                                edges_traversed += 1
-                    
-                    return GraphContext(
-                        entities=entities,
-                        relationships=relationships,
-                        traversal_depth=max_hops,
-                        nodes_visited=nodes_visited,
-                        edges_traversed=edges_traversed
-                    )
-                else:
-                    logger.warning("No vertex types found in schema")
-                    return GraphContext(
-                        entities=entities,
-                        relationships=[],
-                        traversal_depth=0,
-                        nodes_visited=0,
-                        edges_traversed=0
-                    )
-                    
-            except asyncio.TimeoutError:
-                logger.error(f"TigerGraph operation timed out after {settings.operation_timeout_seconds}s")
-                # Fall back to empty context if query times out
-                return GraphContext(
-                    entities=entities,
-                    relationships=[],
-                    traversal_depth=0,
-                    nodes_visited=0,
-                    edges_traversed=0
-                )
-            except Exception as query_error:
-                logger.error(f"TigerGraph query failed: {query_error}")
-                # Fall back to empty context if query fails
-                return GraphContext(
-                    entities=entities,
-                    relationships=[],
-                    traversal_depth=0,
-                    nodes_visited=0,
-                    edges_traversed=0
-                )
+            # Use async connection if available, otherwise use sync with asyncio.to_thread
+            if self.async_conn:
+                try:
+                    return await self._traverse_graph_async(entities, max_hops)
+                except Exception as async_error:
+                    logger.warning(f"Async traversal failed, falling back to sync: {async_error}")
+            
+            # Fallback to sync with thread
+            return await self._traverse_graph_sync(entities, max_hops)
                 
         except Exception as e:
             logger.error(f"Graph traversal failed: {e}")
@@ -190,3 +125,316 @@ class GraphService:
                 nodes_visited=0,
                 edges_traversed=0
             )
+    
+    async def _traverse_graph_async(self, entities: List[str], max_hops: int) -> GraphContext:
+        """Traverse graph using async connection."""
+        try:
+            # Get schema with timeout
+            schema = await asyncio.wait_for(
+                self.async_conn.getSchema(),
+                timeout=settings.operation_timeout_seconds
+            )
+            logger.info(f"Connected to graph with async schema: {len(schema.get('VertexTypes', []))} vertex types")
+            
+            # Try to run Olympic-specific queries based on entities
+            relationships = []
+            nodes_visited = 0
+            edges_traversed = 0
+            
+            # Extract year from entities if present
+            year_entity = None
+            event_keywords = []
+            for entity in entities:
+                if entity.startswith('year_'):
+                    year_entity = entity.replace('year_', '')
+                elif any(keyword in entity.lower() for keyword in ['walk', 'athletics', 'kilometres', 'km']):
+                    event_keywords.append(entity)
+            
+            # Try Olympic-specific query pattern for medalists
+            if year_entity and year_entity.isdigit():
+                year = int(year_entity)
+                
+                # Query for events with specific keywords in that year
+                if event_keywords:
+                    keyword_query = ' OR '.join([f't1.name CONTAINS "{kw}"' for kw in event_keywords])
+                    query = f'''
+                    SELECT t1.name, t3.name, t2.medal_type
+                    FROM Event:t1 - (EVENT_PART_OF_GAMES) -> Games:t2 - (ATHLETE_WON_MEDAL_IN_EVENT) <- Athlete:t3
+                    WHERE t2.year == {year} AND ({keyword_query}) AND t2.medal_type == "gold"
+                    LIMIT 10
+                    '''
+                else:
+                    # General query for events in that year
+                    query = f'''
+                    SELECT t1.name, t3.name, t2.medal_type
+                    FROM Event:t1 - (EVENT_PART_OF_GAMES) -> Games:t2 - (ATHLETE_WON_MEDAL_IN_EVENT) <- Athlete:t3
+                    WHERE t2.year == {year} AND t2.medal_type == "gold"
+                    LIMIT 10
+                    '''
+                
+                try:
+                    result = await asyncio.wait_for(
+                        self.async_conn.runInterpretedQuery(query),
+                        timeout=settings.operation_timeout_seconds
+                    )
+                    
+                    if result and len(result) > 0:
+                        nodes_visited = len(result)
+                        for record in result:
+                            if isinstance(record, dict):
+                                relationships.append({
+                                    "source": str(record.get("t1.name", "event")),
+                                    "target": str(record.get("t3.name", "athlete")),
+                                    "type": "GOLD_MEDALIST",
+                                    "weight": 0.95
+                                })
+                                edges_traversed += 1
+                        logger.info(f"Olympic query returned {len(result)} results")
+                except Exception as query_error:
+                    logger.warning(f"Olympic query failed: {query_error}")
+            
+            # Fallback to generic vertex query if no relationships found
+            if not relationships:
+                vertex_types = schema.get("VertexTypes", [])
+                if vertex_types:
+                    # Try Event vertex first for Olympic data
+                    event_vertex = None
+                    for vt in vertex_types:
+                        if vt["Name"] == "Event":
+                            event_vertex = vt
+                            break
+                    
+                    vertex_type = event_vertex["Name"] if event_vertex else vertex_types[0]["Name"]
+                    query = f'SELECT * FROM {vertex_type} LIMIT 5'
+                    result = await asyncio.wait_for(
+                        self.async_conn.runInterpretedQuery(query),
+                        timeout=settings.operation_timeout_seconds
+                    )
+                    
+                    if result and len(result) > 0:
+                        nodes_visited = len(result)
+                        for i, record in enumerate(result):
+                            if isinstance(record, dict):
+                                relationships.append({
+                                    "source": str(record.get("name", record.get("primary_id", f"node_{i}"))),
+                                    "target": "related_entity",
+                                    "type": "CONNECTED_TO",
+                                    "weight": 0.8
+                                })
+                                edges_traversed += 1
+            
+            return GraphContext(
+                entities=entities,
+                relationships=relationships,
+                traversal_depth=max_hops,
+                nodes_visited=nodes_visited,
+                edges_traversed=edges_traversed
+            )
+            
+        except asyncio.TimeoutError:
+            logger.error(f"Async TigerGraph operation timed out after {settings.operation_timeout_seconds}s")
+            return GraphContext(
+                entities=entities,
+                relationships=[],
+                traversal_depth=0,
+                nodes_visited=0,
+                edges_traversed=0
+            )
+    
+    async def _traverse_graph_sync(self, entities: List[str], max_hops: int) -> GraphContext:
+        """Traverse graph using sync connection with asyncio.to_thread."""
+        try:
+            # Get schema with timeout
+            schema = await asyncio.wait_for(
+                asyncio.to_thread(self.conn.getSchema),
+                timeout=settings.operation_timeout_seconds
+            )
+            logger.info(f"Connected to graph with sync schema: {len(schema.get('VertexTypes', []))} vertex types")
+            
+            relationships = []
+            nodes_visited = 0
+            edges_traversed = 0
+            
+            # Extract year from entities if present
+            year_entity = None
+            event_keywords = []
+            for entity in entities:
+                if entity.startswith('year_'):
+                    year_entity = entity.replace('year_', '')
+                elif any(keyword in entity.lower() for keyword in ['walk', 'athletics', 'kilometres', 'km']):
+                    event_keywords.append(entity)
+            
+            # Try Olympic-specific query pattern for medalists
+            if year_entity and year_entity.isdigit():
+                year = int(year_entity)
+                
+                # Query for events with specific keywords in that year
+                if event_keywords:
+                    keyword_query = ' OR '.join([f't1.name CONTAINS "{kw}"' for kw in event_keywords])
+                    query = f'''
+                    SELECT t1.name, t3.name, t2.medal_type
+                    FROM Event:t1 - (EVENT_PART_OF_GAMES) -> Games:t2 - (ATHLETE_WON_MEDAL_IN_EVENT) <- Athlete:t3
+                    WHERE t2.year == {year} AND ({keyword_query}) AND t2.medal_type == "gold"
+                    LIMIT 10
+                    '''
+                else:
+                    # General query for events in that year
+                    query = f'''
+                    SELECT t1.name, t3.name, t2.medal_type
+                    FROM Event:t1 - (EVENT_PART_OF_GAMES) -> Games:t2 - (ATHLETE_WON_MEDAL_IN_EVENT) <- Athlete:t3
+                    WHERE t2.year == {year} AND t2.medal_type == "gold"
+                    LIMIT 10
+                    '''
+                
+                try:
+                    result = await asyncio.wait_for(
+                        asyncio.to_thread(self.conn.runInterpretedQuery, query),
+                        timeout=settings.operation_timeout_seconds
+                    )
+                    
+                    if result and len(result) > 0:
+                        nodes_visited = len(result)
+                        for record in result:
+                            if isinstance(record, dict):
+                                relationships.append({
+                                    "source": str(record.get("t1.name", "event")),
+                                    "target": str(record.get("t3.name", "athlete")),
+                                    "type": "GOLD_MEDALIST",
+                                    "weight": 0.95
+                                })
+                                edges_traversed += 1
+                        logger.info(f"Olympic query returned {len(result)} results")
+                except Exception as query_error:
+                    logger.warning(f"Olympic query failed: {query_error}")
+            
+            # Fallback to generic vertex query if no relationships found
+            if not relationships:
+                vertex_types = schema.get("VertexTypes", [])
+                if vertex_types:
+                    # Try Event vertex first for Olympic data
+                    event_vertex = None
+                    for vt in vertex_types:
+                        if vt["Name"] == "Event":
+                            event_vertex = vt
+                            break
+                    
+                    vertex_type = event_vertex["Name"] if event_vertex else vertex_types[0]["Name"]
+                    query = f'SELECT * FROM {vertex_type} LIMIT 5'
+                    result = await asyncio.wait_for(
+                        asyncio.to_thread(self.conn.runInterpretedQuery, query),
+                        timeout=settings.operation_timeout_seconds
+                    )
+                    
+                    if result and len(result) > 0:
+                        nodes_visited = len(result)
+                        for i, record in enumerate(result):
+                            if isinstance(record, dict):
+                                relationships.append({
+                                    "source": str(record.get("name", record.get("primary_id", f"node_{i}"))),
+                                    "target": "related_entity",
+                                    "type": "CONNECTED_TO",
+                                    "weight": 0.8
+                                })
+                                edges_traversed += 1
+            
+            return GraphContext(
+                entities=entities,
+                relationships=relationships,
+                traversal_depth=max_hops,
+                nodes_visited=nodes_visited,
+                edges_traversed=edges_traversed
+            )
+            
+        except asyncio.TimeoutError:
+            logger.error(f"Sync TigerGraph operation timed out after {settings.operation_timeout_seconds}s")
+            return GraphContext(
+                entities=entities,
+                relationships=[],
+                traversal_depth=0,
+                nodes_visited=0,
+                edges_traversed=0
+            )
+    
+    async def check_graph_exists(self) -> bool:
+        """Check if the TigerGraph graph exists."""
+        if not self.conn:
+            return False
+        
+        try:
+            # Try to get the schema - if it fails, graph doesn't exist
+            schema = await asyncio.wait_for(
+                asyncio.to_thread(self.conn.getSchema),
+                timeout=5.0
+            )
+            return schema is not None and len(schema.get("VertexTypes", [])) > 0
+        except Exception as e:
+            logger.warning(f"Graph existence check failed: {e}")
+            return False
+    
+    async def initialize_graph_if_needed(self, corpus_path: str = None) -> bool:
+        """Initialize TigerGraph graph if it doesn't exist."""
+        if not self.conn:
+            logger.warning("Cannot initialize graph - no connection")
+            return False
+        
+        try:
+            # Check if graph already exists
+            if await self.check_graph_exists():
+                logger.info(f"Graph {settings.tg_graphname} already exists - skipping initialization")
+                return True
+            
+            logger.info(f"Graph {settings.tg_graphname} does not exist - initializing...")
+            
+            # Use the ingestion pipeline to create schema and load data
+            from app.tigergraph.ingestion import TigerGraphIngestion
+            from pathlib import Path
+            
+            ingestion = TigerGraphIngestion()
+            
+            # Determine corpus path
+            if corpus_path is None:
+                backend_dir = Path(__file__).parent.parent.parent
+                corpus_path = str(backend_dir / "corpus_production.jsonl")
+            
+            # Check if corpus file exists
+            if not Path(corpus_path).exists():
+                logger.error(f"Corpus file not found: {corpus_path}")
+                return False
+            
+            # Create schema
+            if not ingestion.create_schema():
+                logger.error("Failed to create TigerGraph schema")
+                return False
+            
+            # Load and ingest corpus
+            if not ingestion.load_dataset(corpus_path, ""):
+                logger.error("Failed to load corpus")
+                return False
+            
+            # Ingest all data
+            results = {
+                'documents': ingestion.ingest_documents(),
+                'events': ingestion.ingest_events(),
+                'athletes': ingestion.ingest_athletes(),
+                'nations': ingestion.ingest_nations(),
+                'venues': ingestion.ingest_venues(),
+                'games': ingestion.ingest_games(),
+                'sports': ingestion.ingest_sports(),
+                'edges': ingestion.ingest_edges()
+            }
+            
+            logger.info(f"Graph initialization completed: {results}")
+            
+            # Verify the graph was created
+            if await self.check_graph_exists():
+                logger.info("Graph successfully created and verified")
+                return True
+            else:
+                logger.error("Graph creation verification failed")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Graph initialization failed: {e}")
+            import traceback
+            traceback.print_exc()
+            return False

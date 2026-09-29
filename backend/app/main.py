@@ -41,6 +41,31 @@ async def lifespan(app: FastAPI):
             except:
                 pass
     
+    # Initialize TigerGraph graph if configured
+    if settings.tg_host and settings.tg_secret:
+        logger.info("TigerGraph configured - checking graph initialization")
+        try:
+            from app.tigergraph.graph_service import GraphService
+            graph_service = GraphService()
+            
+            # Initialize graph if it doesn't exist
+            from pathlib import Path
+            backend_dir = Path(__file__).parent.parent
+            corpus_path = str(backend_dir / "corpus_production.jsonl")
+            
+            if Path(corpus_path).exists():
+                init_success = await graph_service.initialize_graph_if_needed(corpus_path)
+                if init_success:
+                    logger.info("TigerGraph graph initialization successful")
+                else:
+                    logger.warning("TigerGraph graph initialization failed - graph may not be available")
+            else:
+                logger.warning(f"Production corpus not found at {corpus_path} - skipping TigerGraph initialization")
+        except Exception as e:
+            logger.error(f"TigerGraph initialization failed: {e}")
+            import traceback
+            traceback.print_exc()
+    
     yield
     logger.info("Shutting down GraphProbe AI backend...")
 

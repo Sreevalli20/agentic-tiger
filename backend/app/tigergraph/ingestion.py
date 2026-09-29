@@ -46,7 +46,7 @@ class TigerGraphIngestion:
             self.conn = None
     
     def create_schema(self) -> bool:
-        """Create the TigerGraph schema."""
+        """Create the TigerGraph schema idempotently."""
         if not self.conn:
             logger.error("No TigerGraph connection available")
             return False
@@ -54,14 +54,16 @@ class TigerGraphIngestion:
         try:
             logger.info("Creating TigerGraph schema...")
             
-            # Drop existing graph if it exists
+            # Check if graph already exists
             try:
-                self.conn.gsql(f'DROP GRAPH {settings.tg_graphname}')
-                logger.info(f"Dropped existing graph {settings.tg_graphname}")
-            except:
-                logger.info("No existing graph to drop")
+                schema = self.conn.getSchema()
+                if schema and len(schema.get("VertexTypes", [])) > 0:
+                    logger.info(f"Graph {settings.tg_graphname} already exists with schema - skipping creation")
+                    return True
+            except Exception as check_error:
+                logger.info(f"Graph existence check failed (expected if graph doesn't exist): {check_error}")
             
-            # Create schema GSQL
+            # Create schema GSQL (only if graph doesn't exist)
             schema_gsql = """
             CREATE VERTEX Document(PRIMARY_ID doc_id STRING, title STRING, url STRING, wikidata_qid STRING, wikipedia_pageid INT, approx_tokens INT, text_snippet STRING)
             CREATE VERTEX Event(PRIMARY_ID event_id STRING, name STRING, sport STRING, games STRING, year INT, season STRING, date STRING, venue STRING, competitors INT, nations INT, event_type STRING)
@@ -94,13 +96,46 @@ class TigerGraphIngestion:
     def load_dataset(self, corpus_path: str, questions_path: str) -> bool:
         """Load and parse the dataset."""
         try:
-            logger.info("Loading dataset...")
-            self.parser = DatasetParser(corpus_path, questions_path)
-            data = self.parser.load_all()
-            logger.info(f"Loaded {len(data['documents'])} documents")
+            logger.info(f"Loading dataset from {corpus_path}...")
+            
+            # For production corpus, load directly without DatasetParser
+            # since we only need the corpus file
+            import json
+            from pathlib import Path
+            
+            corpus_file = Path(corpus_path)
+            if not corpus_file.exists():
+                logger.error(f"Corpus file not found: {corpus_path}")
+                return False
+            
+            documents = []
+            with open(corpus_file, 'r', encoding='utf-8') as f:
+                for line_num, line in enumerate(f, 1):
+                    try:
+                        doc = json.loads(line.strip())
+                        documents.append(doc)
+                    except json.JSONDecodeError as e:
+                        logger.error(f"Failed to parse line {line_num}: {e}")
+            
+            # Create a simple parser-like object for extraction
+            class SimpleParser:
+                def __init__(self, documents):
+                    self.documents = documents
+                
+                def extract_event_info(self, document):
+                    # Import DatasetParser to use its extraction logic
+                    from app.data.dataset_parser import DatasetParser
+                    # Create a temporary parser just for extraction
+                    temp_parser = DatasetParser("", "")
+                    return temp_parser.extract_event_info(document)
+            
+            self.parser = SimpleParser(documents)
+            logger.info(f"Loaded {len(documents)} documents from production corpus")
             return True
         except Exception as e:
             logger.error(f"Failed to load dataset: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     def ingest_documents(self) -> Dict[str, int]:
