@@ -183,8 +183,9 @@ class AgentOrchestrator:
         elif not state.graph_relationships and state.iteration <= 2:
             # Have entities but no relationships: try graph traversal (limited attempts)
             # But skip if we already have good evidence from vector search
-            if state.evidence and any(ev.metadata.confidence > 0.4 for ev in state.evidence):
-                # Skip graph traversal if we already have good evidence
+            if state.evidence and any(ev.metadata.confidence > 0.3 for ev in state.evidence):
+                # Skip graph traversal if we already have reasonable evidence
+                logger.info(f"Skipping graph traversal - have evidence with confidence > 0.3")
                 return ToolType.EVALUATE_EVIDENCE
             return ToolType.GRAPH_TRAVERSE
         else:
