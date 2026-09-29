@@ -41,50 +41,11 @@ async def lifespan(app: FastAPI):
             except:
                 pass
     
-    # Initialize TigerGraph graph if configured (non-blocking with timeout)
+    # Initialize TigerGraph graph if configured (disabled - use /api/tigergraph/ingest endpoint)
+    # Note: Automatic initialization disabled to prevent blocking server startup
+    # Use /api/tigergraph/ingest endpoint to manually trigger ingestion after deployment
     if settings.tg_host and settings.tg_secret:
-        logger.info("TigerGraph configured - attempting automatic initialization with timeout")
-        try:
-            from app.tigergraph.graph_service import GraphService
-            from pathlib import Path
-            import asyncio
-            
-            graph_service = GraphService()
-            
-            # Determine corpus path for initialization
-            backend_dir = Path(__file__).parent.parent
-            corpus_path = backend_dir / "corpus_production.jsonl"
-            
-            # Try multiple possible locations
-            if not corpus_path.exists():
-                corpus_path = backend_dir / "app" / "corpus_production.jsonl"
-            
-            if not corpus_path.exists():
-                corpus_path = backend_dir.parent / "corpus_production.jsonl"
-            
-            logger.info(f"Corpus path for TigerGraph initialization: {corpus_path}, exists: {corpus_path.exists()}")
-            
-            # Initialize graph if needed (idempotent) with timeout to prevent blocking startup
-            if corpus_path.exists():
-                try:
-                    init_success = await asyncio.wait_for(
-                        graph_service.initialize_graph_if_needed(str(corpus_path)),
-                        timeout=30.0  # 30 second timeout for initialization
-                    )
-                    if init_success:
-                        logger.info("TigerGraph automatic initialization completed successfully")
-                    else:
-                        logger.warning("TigerGraph automatic initialization failed - will use endpoint for manual retry")
-                except asyncio.TimeoutError:
-                    logger.warning("TigerGraph initialization timed out after 30s - server starting anyway, use /api/tigergraph/ingest for manual retry")
-                except Exception as init_error:
-                    logger.warning(f"TigerGraph initialization failed with error: {init_error} - server starting anyway")
-            else:
-                logger.warning(f"Corpus file not found at {corpus_path} - skipping TigerGraph initialization")
-        except Exception as e:
-            logger.error(f"TigerGraph automatic initialization setup failed: {e}")
-            import traceback
-            traceback.print_exc()
+        logger.info("TigerGraph configured - automatic initialization disabled, use /api/tigergraph/ingest endpoint")
     
     yield
     logger.info("Shutting down GraphProbe AI backend...")
