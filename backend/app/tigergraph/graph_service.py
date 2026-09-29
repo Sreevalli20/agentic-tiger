@@ -85,6 +85,7 @@ class GraphService:
         if "before 2016" in text.lower() or "prior to 2016" in text.lower():
             entities.append("year_2012")
             entities.append("2012")  # Also add plain year for better matching
+            entities.append("2012 Summer")  # Add the full games reference
         
         # Extract event-specific keywords
         event_keywords = ['walk', 'athletics', 'kilometres', 'km', 'marathon', 'sprint', 'swimming', 'cycling']
