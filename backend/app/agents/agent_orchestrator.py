@@ -172,8 +172,8 @@ class AgentOrchestrator:
         elif not state.graph_entities:
             # No entities yet: extract them
             return ToolType.ENTITY_LINK
-        elif ToolType.GRAPH_TRAVERSE not in state.tools_used and state.graph_entities:
-            # Have entities but haven't traversed graph yet: do graph traversal first
+        elif ToolType.GRAPH_TRAVERSE not in state.tools_used:
+            # Haven't traversed graph yet: do graph traversal (iteration 2)
             return ToolType.GRAPH_TRAVERSE
         elif len(state.evidence) < 3:
             # Need more evidence: vector search
