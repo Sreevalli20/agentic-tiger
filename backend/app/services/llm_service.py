@@ -29,6 +29,23 @@ class LLMService:
             logger.warning("LLM API key not configured (neither GOOGLE_API_KEY nor LLM_API_KEY set)")
             return
 
+        try:
+            if self.provider == "openai":
+                self.client = OpenAI(api_key=api_key)
+                logger.info("Initialized OpenAI client")
+            elif self.provider == "anthropic":
+                self.client = anthropic.Anthropic(api_key=api_key)
+                logger.info("Initialized Anthropic client")
+            elif self.provider == "google":
+                # Use the new google.genai client
+                self.client = genai.Client(api_key=api_key)
+                logger.info("Initialized Google Gemini client")
+            else:
+                logger.warning(f"Unknown LLM provider: {self.provider}")
+        except Exception as e:
+            logger.error(f"Failed to initialize LLM client: {e}")
+            self.client = None
+
     def _extract_answer_from_context(self, question: str, context: List[Dict[str, Any]]) -> str:
         """Extract answer from context documents using simple pattern matching."""
         question_lower = question.lower()
@@ -62,24 +79,7 @@ class LLMService:
             return f"Based on the retrieved documents: {best_chunk}"
         
         return "Unable to determine answer from available context."
-        
-        try:
-            if self.provider == "openai":
-                self.client = OpenAI(api_key=api_key)
-                logger.info("Initialized OpenAI client")
-            elif self.provider == "anthropic":
-                self.client = anthropic.Anthropic(api_key=api_key)
-                logger.info("Initialized Anthropic client")
-            elif self.provider == "google":
-                # Use the new google.genai client
-                self.client = genai.Client(api_key=api_key)
-                logger.info("Initialized Google Gemini client")
-            else:
-                logger.warning(f"Unknown LLM provider: {self.provider}")
-        except Exception as e:
-            logger.error(f"Failed to initialize LLM client: {e}")
-            self.client = None
-    
+
     async def generate_answer(self, question: str, context: List[Dict[str, Any]]) -> tuple[str, Dict[str, int]]:
         """Generate answer based on question and context."""
         if not self.client:
