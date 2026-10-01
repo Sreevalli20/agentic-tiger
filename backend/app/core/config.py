@@ -39,7 +39,9 @@ class Settings(BaseSettings):
         "https://frontend-7a22khueo-siris-projects-3809a50c.vercel.app",
         "https://frontend-d73hry92o-siris-projects-3809a50c.vercel.app",
         "https://frontend-iq5jucuoe-siris-projects-3809a50c.vercel.app",
-        "https://frontend-59w3ywhko-siris-projects-3809a50.vercel.app"
+        "https://frontend-59w3ywhko-siris-projects-3809a50.vercel.app",
+        "https://frontend-7qk3vu4uq-siris-projects-3809a50c.vercel.app",
+        "https://frontend-gamma-ecru-m8dndislo7.vercel.app"
     ]
     
     # Data Configuration
