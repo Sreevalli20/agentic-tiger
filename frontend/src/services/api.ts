@@ -38,7 +38,14 @@ export const api = {
       if (error instanceof Error && error.name === 'AbortError') {
         throw new Error('Investigation timed out. Please try a simpler question.');
       }
-      throw error;
+      if (error instanceof Error) {
+        // Provide more detailed error information
+        if (error.message.includes('Failed to fetch')) {
+          throw new Error('Network error: Unable to connect to the backend. Please check your connection and try again.');
+        }
+        throw error;
+      }
+      throw new Error('An unexpected error occurred');
     }
   },
 

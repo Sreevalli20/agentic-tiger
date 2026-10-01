@@ -1,12 +1,12 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Search, BarChart3, GitBranch, Activity, Settings, Home } from 'lucide-react'
+import { Search, BarChart3, GitBranch, Settings, Home } from 'lucide-react'
 
 const navItems = [
   { path: '/', label: 'Overview', icon: Home },
   { path: '/investigate', label: 'Investigate', icon: Search },
   { path: '/compare', label: 'Compare', icon: GitBranch },
   { path: '/metrics', label: 'Metrics', icon: BarChart3 },
-  { path: '/trace', label: 'Agent Trace', icon: Activity },
+  { path: '/settings', label: 'Settings', icon: Settings },
 ]
 
 export default function Layout({ children }: { children: React.ReactNode }) {
@@ -24,11 +24,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <h1 className="text-xl font-bold text-gray-100">GraphProbe AI</h1>
                 <p className="text-xs text-cyan-400">Investigate. Connect. Verify.</p>
               </div>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Link to="/settings" className="p-2 hover:bg-navy-700 rounded-lg transition-colors">
-                <Settings className="h-5 w-5 text-gray-400" />
-              </Link>
             </div>
           </div>
         </div>
