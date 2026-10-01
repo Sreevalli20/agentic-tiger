@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { BarChart3, Clock, Zap, AlertCircle, TrendingUp } from 'lucide-react'
 import { api } from '../services/api'
 
 export default function Metrics() {
@@ -18,8 +19,7 @@ export default function Metrics() {
       setLoading(true)
       const data = await api.getBenchmarkResults() as any
       setBenchmarkRuns(data.runs || [])
-      
-      // Auto-select the most recent run
+
       if (data.runs && data.runs.length > 0) {
         const latestRun = data.runs[0]
         setSelectedRun(latestRun.run_id)
@@ -28,7 +28,6 @@ export default function Metrics() {
     } catch (error) {
       console.error('Failed to load benchmark runs:', error)
       setError(error instanceof Error ? error.message : 'Failed to load benchmark data')
-      // Also try to get general metrics if benchmark results fail
       try {
         const metricsData = await api.getMetrics() as any
         setMetrics({
@@ -59,7 +58,6 @@ export default function Metrics() {
     loadMetrics(runId)
   }
 
-  // Transform metrics for charts
   const accuracyData = metrics ? Object.entries(metrics).map(([pipeline, data]: [string, any]) => ({
     name: pipeline === 'rag' ? 'RAG' : pipeline === 'graphrag' ? 'GraphRAG' : 'Agentic',
     accuracy: (data.accuracy * 100).toFixed(1)
@@ -75,7 +73,6 @@ export default function Metrics() {
     tokens: data.avg_tokens.toFixed(0)
   })) : []
 
-  // Calculate aggregate metrics
   const totalQuestions = benchmarkRuns.length > 0 ? benchmarkRuns[0].total_results : 0
   const avgAccuracy = metrics ? (Object.values(metrics).reduce((sum: number, data: any) => sum + data.accuracy, 0) / Object.keys(metrics).length * 100).toFixed(1) : '--'
   const avgLatency = metrics ? (Object.values(metrics).reduce((sum: number, data: any) => sum + data.avg_latency, 0) / Object.keys(metrics).length).toFixed(0) : '--'
@@ -84,7 +81,10 @@ export default function Metrics() {
   return (
     <div className="space-y-6">
       <div className="glass-panel p-6">
-        <h2 className="text-2xl font-bold text-gray-100 mb-2">Metrics Dashboard</h2>
+        <div className="flex items-center space-x-3 mb-2">
+          <BarChart3 className="h-6 w-6 text-cyan-400" />
+          <h2 className="text-2xl font-bold text-gray-100">Performance Metrics</h2>
+        </div>
         <p className="text-gray-400">
           Real benchmark results comparing RAG, GraphRAG, and Agentic GraphRAG performance
         </p>
@@ -92,8 +92,12 @@ export default function Metrics() {
 
       {/* Error */}
       {error && (
-        <div className="glass-panel p-4 border border-red-500/50">
-          <p className="text-sm text-red-400">{error}</p>
+        <div className="glass-panel p-6 border border-red-500/50">
+          <div className="flex items-center space-x-3 mb-2">
+            <AlertCircle className="h-5 w-5 text-red-400" />
+            <h3 className="text-lg font-semibold text-red-400">Error</h3>
+          </div>
+          <p className="text-gray-300">{error}</p>
         </div>
       )}
 
@@ -134,21 +138,33 @@ export default function Metrics() {
       {/* Key Metrics */}
       {metrics && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="glass-panel p-4">
-            <h3 className="text-sm font-medium text-gray-400 mb-2">Total Questions</h3>
-            <p className="text-2xl font-bold text-gray-100">{totalQuestions}</p>
+          <div className="glass-panel p-5 border-t-4 border-t-cyan-500">
+            <div className="flex items-center space-x-2 mb-2">
+              <TrendingUp className="h-5 w-5 text-cyan-400" />
+              <h3 className="text-sm font-medium text-gray-400">Total Questions</h3>
+            </div>
+            <p className="text-3xl font-bold text-gray-100">{totalQuestions}</p>
           </div>
-          <div className="glass-panel p-4">
-            <h3 className="text-sm font-medium text-gray-400 mb-2">Avg Accuracy</h3>
-            <p className="text-2xl font-bold text-cyan-400">{avgAccuracy}%</p>
+          <div className="glass-panel p-5 border-t-4 border-t-green-500">
+            <div className="flex items-center space-x-2 mb-2">
+              <TrendingUp className="h-5 w-5 text-green-400" />
+              <h3 className="text-sm font-medium text-gray-400">Avg Accuracy</h3>
+            </div>
+            <p className="text-3xl font-bold text-green-400">{avgAccuracy}%</p>
           </div>
-          <div className="glass-panel p-4">
-            <h3 className="text-sm font-medium text-gray-400 mb-2">Avg Latency</h3>
-            <p className="text-2xl font-bold text-gray-100">{avgLatency}ms</p>
+          <div className="glass-panel p-5 border-t-4 border-t-yellow-500">
+            <div className="flex items-center space-x-2 mb-2">
+              <Clock className="h-5 w-5 text-yellow-400" />
+              <h3 className="text-sm font-medium text-gray-400">Avg Latency</h3>
+            </div>
+            <p className="text-3xl font-bold text-gray-100">{avgLatency}ms</p>
           </div>
-          <div className="glass-panel p-4">
-            <h3 className="text-sm font-medium text-gray-400 mb-2">Avg Tokens</h3>
-            <p className="text-2xl font-bold text-gray-100">{avgTokens}</p>
+          <div className="glass-panel p-5 border-t-4 border-t-purple-500">
+            <div className="flex items-center space-x-2 mb-2">
+              <Zap className="h-5 w-5 text-purple-400" />
+              <h3 className="text-sm font-medium text-gray-400">Avg Tokens</h3>
+            </div>
+            <p className="text-3xl font-bold text-gray-100">{avgTokens}</p>
           </div>
         </div>
       )}
@@ -164,7 +180,7 @@ export default function Metrics() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#233554" />
                 <XAxis dataKey="name" stroke="#8892b0" />
                 <YAxis stroke="#8892b0" />
-                <Tooltip 
+                <Tooltip
                   contentStyle={{ backgroundColor: '#112240', border: '1px solid #233554' }}
                   itemStyle={{ color: '#8892b0' }}
                 />
@@ -181,7 +197,7 @@ export default function Metrics() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#233554" />
                 <XAxis dataKey="name" stroke="#8892b0" />
                 <YAxis stroke="#8892b0" />
-                <Tooltip 
+                <Tooltip
                   contentStyle={{ backgroundColor: '#112240', border: '1px solid #233554' }}
                   itemStyle={{ color: '#8892b0' }}
                 />
@@ -198,7 +214,7 @@ export default function Metrics() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#233554" />
                 <XAxis dataKey="name" stroke="#8892b0" />
                 <YAxis stroke="#8892b0" />
-                <Tooltip 
+                <Tooltip
                   contentStyle={{ backgroundColor: '#112240', border: '1px solid #233554' }}
                   itemStyle={{ color: '#8892b0' }}
                 />
