@@ -250,6 +250,33 @@ EVIDENCE_SUFFICIENCY_THRESHOLD=0.8
 MAX_TOKEN_BUDGET=10000
 ```
 
+### TigerGraph Cloud Database-1 Setup
+
+The application uses TigerGraph Cloud Database-1 with the Transaction_Fraud graph.
+
+**To configure TG_HOST:**
+1. Log in to your TigerGraph Cloud account
+2. Navigate to your Database-1 instance
+3. Copy the host URL from the connection details
+4. Format: `https://your-instance.i.tgcloud.io` or `http://your-instance.i.tgcloud.io`
+5. Set as TG_HOST environment variable
+
+**To configure TG_SECRET:**
+1. In TigerGraph Cloud, navigate to your Database-1 instance
+2. Go to the "Secrets" or "Authentication" section
+3. Generate or copy your secret token
+4. Set as TG_SECRET environment variable
+
+**To configure TG_GRAPHNAME:**
+1. In TigerGraph Cloud, verify your graph name
+2. Default: Transaction_Fraud
+3. Set as TG_GRAPHNAME environment variable if different
+
+**To configure GOOGLE_API_KEY:**
+1. Go to Google AI Studio (https://aistudio.google.com)
+2. Create a new API key or use existing one
+3. Set as GOOGLE_API_KEY environment variable
+
 ## Metrics
 
 The system tracks:
@@ -285,8 +312,8 @@ pytest tests/test_retrieval.py
 - URL: https://graphprobe-ai-backend.onrender.com
 - Status: Deployed and operational
 - Health: Healthy (TigerGraph connected, vector DB available, LLM configured)
-- Configuration: `backend/render.yaml`
-- Environment variables: GOOGLE_API_KEY, TG_HOST, TG_SECRET, TG_GRAPHNAME
+- Configuration: `render.yaml` (project root)
+- Environment variables: PORT, TG_HOST, TG_PORT, TG_SECRET, TG_GRAPHNAME, GOOGLE_API_KEY, LLM_PROVIDER, LLM_MODEL, PRODUCTION_MODE, PRODUCTION_CORPUS_PATH, PRODUCTION_MAX_DOCS, MAX_AGENT_ITERATIONS, AGENTIC_TIMEOUT_SECONDS, OPERATION_TIMEOUT_SECONDS, CORS_ORIGINS
 
 **Frontend (Vercel)**
 - URL: https://frontend-81rdtgomo-siris-projects-3809a50.vercel.app
@@ -309,12 +336,33 @@ pytest tests/test_retrieval.py
 ### Production Deployment Configuration
 
 **Backend (Render)**
-- Configuration: `backend/render.yaml`
-- Environment variables: GOOGLE_API_KEY, TG_HOST, TG_SECRET, TG_GRAPHNAME
-- Note: Requires manual configuration of environment variables in Render dashboard
+- Configuration: `render.yaml` (project root)
+- Root directory: `backend`
+- Build command: `pip install -r requirements.txt`
+- Start command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+- Health check path: `/api/health`
+- Environment variables:
+  - `PORT` (set by Render automatically)
+  - `TG_HOST` (your TigerGraph Cloud host - must be configured in Render dashboard)
+  - `TG_PORT` (default: 14240)
+  - `TG_SECRET` (your TigerGraph secret - must be configured in Render dashboard)
+  - `TG_GRAPHNAME` (default: Transaction_Fraud)
+  - `GOOGLE_API_KEY` (your Google AI API key - must be configured in Render dashboard)
+  - `LLM_PROVIDER` (default: google)
+  - `LLM_MODEL` (default: gemini-1.5-flash)
+  - `PRODUCTION_MODE` (default: true)
+  - `PRODUCTION_CORPUS_PATH` (default: ./corpus_production.jsonl)
+  - `PRODUCTION_MAX_DOCS` (default: 40)
+  - `MAX_AGENT_ITERATIONS` (default: 10)
+  - `AGENTIC_TIMEOUT_SECONDS` (default: 180)
+  - `OPERATION_TIMEOUT_SECONDS` (default: 60)
+  - `CORS_ORIGINS` (default: multiple Vercel frontend URLs)
 
 **Frontend (Vercel)**
 - Configuration: `frontend/vercel.json`
+- Build command: `npm run build`
+- Output directory: `dist`
+- Framework: Vite
 - Environment variables: VITE_API_BASE_URL (auto-configured)
 - Note: Backend URL must be deployed first and updated in Vercel config
 
@@ -324,22 +372,25 @@ pytest tests/test_retrieval.py
    ```bash
    # Install Render CLI or use web dashboard
    # Connect repository
-   # Configure environment variables:
-   # - GOOGLE_API_KEY: Your Google AI API key
-   # - TG_HOST: Your TigerGraph host
+   # Configure environment variables in Render dashboard:
+   # - TG_HOST: Your TigerGraph Cloud host (e.g., https://your-instance.i.tgcloud.io)
    # - TG_SECRET: Your TigerGraph secret
-   # - TG_GRAPHNAME: Transaction_Fraud
+   # - GOOGLE_API_KEY: Your Google AI API key
+   # - TG_GRAPHNAME: Transaction_Fraud (or your graph name)
+   # - TG_PORT: 14240 (default, or your custom port)
    ```
 
 2. **Deploy Frontend to Vercel**
    ```bash
    # Install Vercel CLI or use web dashboard
    # Connect repository
+   # Set root directory: frontend
    # Update VITE_API_BASE_URL to match Render backend URL
+   # - VITE_API_BASE_URL: https://graphprobe-ai-backend.onrender.com
    ```
 
 3. **Verify Deployment**
-   - Test backend health endpoint
+   - Test backend health endpoint: https://graphprobe-ai-backend.onrender.com/api/health
    - Test frontend loads correctly
    - Verify API connectivity
 
