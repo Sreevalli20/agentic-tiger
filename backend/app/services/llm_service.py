@@ -3,6 +3,7 @@ from typing import Dict, Any, List, Optional
 from openai import OpenAI
 import anthropic
 import google.genai as genai
+from groq import Groq
 import warnings
 import asyncio
 from app.core.config import settings
@@ -22,11 +23,16 @@ class LLMService:
     
     def _initialize_client(self):
         """Initialize the appropriate LLM client."""
-        # Prefer GOOGLE_API_KEY if set, otherwise fall back to LLM_API_KEY
-        api_key = settings.google_api_key if settings.google_api_key else settings.llm_api_key
+        # Prefer provider-specific API keys
+        if self.provider == "groq":
+            api_key = settings.groq_api_key
+        elif self.provider == "google":
+            api_key = settings.google_api_key if settings.google_api_key else settings.llm_api_key
+        else:
+            api_key = settings.llm_api_key
         
         if not api_key:
-            logger.warning("LLM API key not configured (neither GOOGLE_API_KEY nor LLM_API_KEY set)")
+            logger.warning(f"LLM API key not configured for provider {self.provider}")
             return
 
         try:
@@ -40,64 +46,19 @@ class LLMService:
                 # Use the new google.genai client
                 self.client = genai.Client(api_key=api_key)
                 logger.info("Initialized Google Gemini client")
+            elif self.provider == "groq":
+                self.client = Groq(api_key=api_key)
+                logger.info("Initialized Groq client")
             else:
                 logger.warning(f"Unknown LLM provider: {self.provider}")
         except Exception as e:
             logger.error(f"Failed to initialize LLM client: {e}")
             self.client = None
 
-    def _extract_answer_from_context(self, question: str, context: List[Dict[str, Any]]) -> str:
-        """Extract answer from context documents using simple pattern matching."""
-        question_lower = question.lower()
-        
-        # Check for Olympic medal questions
-        if "gold medal" in question_lower and "won" in question_lower:
-            for chunk in context:
-                content = chunk.get("content", "").lower()
-                # Look for gold medal information
-                if "gold:" in content:
-                    # Extract the name after "gold:"
-                    lines = chunk.get("content", "").split("\n")
-                    for line in lines:
-                        if "gold:" in line:
-                            parts = line.split("gold:")
-                            if len(parts) > 1:
-                                gold_info = parts[1].strip()
-                                # Extract name (before NOC)
-                                name = gold_info.split()[0] if gold_info else "Unknown"
-                                # Also check for year
-                                year = ""
-                                if "2012" in chunk.get("content", ""):
-                                    year = "2012 "
-                                if "20 kilometre" in question_lower or "20km" in question_lower:
-                                    return f"Chen Ding won the gold medal in the men's 20 kilometres walk at the {year}Summer Olympics."
-                                return f"{name} won the gold medal."
-        
-        # General fallback: return the most relevant chunk
-        if context and len(context) > 0:
-            best_chunk = context[0].get("content", "")[:500]
-            return f"Based on the retrieved documents: {best_chunk}"
-        
-        return "Unable to determine answer from available context."
-
     async def generate_answer(self, question: str, context: List[Dict[str, Any]]) -> tuple[str, Dict[str, int]]:
         """Generate answer based on question and context."""
         if not self.client:
-            # Extract answer from context if available
-            if context and len(context) > 0:
-                # Try to find the answer in the retrieved documents
-                answer = self._extract_answer_from_context(question, context)
-                return answer, {
-                    "input": 100,
-                    "output": 50,
-                    "total": 150
-                }
-            else:
-                return f"Based on the retrieved documents, here is an answer to: {question}", {
-                    "input": 100,
-                    "output": 50,
-                    "total": 150
-                }
+            raise ValueError(f"LLM client not initialized for provider {self.provider}. Please check API key configuration.")
         
         try:
             # Prepare context from retrieved chunks
@@ -121,16 +82,14 @@ Provide a clear, well-supported answer with citations to the relevant documents.
                 return await self._generate_anthropic(prompt)
             elif self.provider == "google":
                 return await self._generate_google(prompt)
+            elif self.provider == "groq":
+                return await self._generate_groq(prompt)
             else:
                 raise ValueError(f"Unknown provider: {self.provider}")
                 
         except Exception as e:
             logger.error(f"LLM generation failed: {e}")
-            return f"Error generating answer: {str(e)}", {
-                "input": 0,
-                "output": 0,
-                "total": 0
-            }
+            raise e
     
     async def _generate_openai(self, prompt: str) -> tuple[str, Dict[str, int]]:
         """Generate answer using OpenAI with timeout protection."""
@@ -225,16 +184,73 @@ Provide a clear, well-supported answer with citations to the relevant documents.
             return answer, tokens
         except asyncio.TimeoutError:
             logger.error(f"Google generation timed out after {settings.operation_timeout_seconds}s")
-            return f"LLM generation timed out after {settings.operation_timeout_seconds}s", {
-                "input": 0,
-                "output": 0,
-                "total": 0
-            }
+            raise TimeoutError(f"Google generation timed out after {settings.operation_timeout_seconds}s")
         except Exception as e:
             logger.error(f"Google generation failed: {e}")
-            # Fallback to placeholder
-            return f"Based on the retrieved documents, here is an answer to the question.", {
-                "input": 100,
-                "output": 50,
-                "total": 150
+            raise e
+    
+    async def _generate_groq(self, prompt: str) -> tuple[str, Dict[str, int]]:
+        """Generate answer using Groq with timeout protection."""
+        try:
+            response = await asyncio.wait_for(
+                asyncio.to_thread(
+                    self.client.chat.completions.create,
+                    model=settings.llm_model,
+                    messages=[
+                        {"role": "system", "content": "You are a helpful assistant that answers questions based on provided context. Always provide a complete answer in the content field."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    max_tokens=1000,
+                    temperature=0.5
+                ),
+                timeout=settings.operation_timeout_seconds
+            )
+            
+            # Extract answer from response
+            message = response.choices[0].message
+            answer = message.content if message.content else ""
+            
+            logger.info(f"Groq response answer length: {len(answer) if answer else 0}")
+            logger.info(f"Groq response answer preview: {answer[:200] if answer else 'EMPTY'}")
+            
+            # For GPT-OSS models with reasoning, the content field might be empty
+            # In this case, we need to extract the actual answer from the reasoning
+            if not answer or answer.strip() == "":
+                if hasattr(message, 'reasoning') and message.reasoning:
+                    logger.warning(f"Content field is empty, using reasoning field (length: {len(message.reasoning)})")
+                    # Extract the final answer from reasoning - look for patterns like "So the answer is:" or just use the last part
+                    reasoning = message.reasoning
+                    # Try to extract a concise answer from the reasoning
+                    lines = reasoning.split('\n')
+                    # Look for conclusion sentences
+                    for line in reversed(lines):
+                        if 'answer' in line.lower() or 'result' in line.lower() or 'conclusion' in line.lower():
+                            answer = line.strip()
+                            break
+                    if not answer:
+                        # Use the last non-empty line as the answer
+                        for line in reversed(lines):
+                            if line.strip():
+                                answer = line.strip()
+                                break
+                    # Limit answer length
+                    if answer and len(answer) > 500:
+                        answer = answer[:500] + "..."
+            
+            if not answer or answer.strip() == "":
+                logger.warning("Groq returned empty answer after all extraction attempts")
+                raise ValueError("LLM returned empty answer")
+            
+            tokens = {
+                "input": response.usage.prompt_tokens,
+                "output": response.usage.completion_tokens,
+                "total": response.usage.total_tokens
             }
+            
+            return answer, tokens
+        except asyncio.TimeoutError:
+            logger.error(f"Groq generation timed out after {settings.operation_timeout_seconds}s")
+            raise TimeoutError(f"Groq generation timed out after {settings.operation_timeout_seconds}s")
+        except Exception as e:
+            logger.error(f"Groq generation failed: {e}")
+            raise e
