@@ -18,12 +18,12 @@ services:
         sync: false
       - key: TG_GRAPHNAME
         value: Transaction_Fraud
-      - key: GOOGLE_API_KEY
+      - key: GROQ_API_KEY
         sync: false
       - key: LLM_PROVIDER
-        value: google
+        value: groq
       - key: LLM_MODEL
-        value: gemini-1.5-flash
+        value: openai/gpt-oss-20b
       - key: PRODUCTION_MODE
         value: "true"
       - key: PRODUCTION_CORPUS_PATH
