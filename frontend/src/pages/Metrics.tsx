@@ -63,7 +63,7 @@ export default function Metrics() {
     try {
       setRunningBenchmark(true)
       setError(null)
-      const result = await api.runBenchmark(['rag', 'graphrag', 'agentic'], 5) as any // Use 5 questions for faster execution
+      const result = await api.runBenchmark(['rag', 'graphrag', 'agentic'], 1) as any // Use 1 question for faster execution
       console.log('Benchmark completed:', result)
       // If metrics are returned directly, use them
       if (result.metrics) {
@@ -150,7 +150,7 @@ export default function Metrics() {
             disabled={runningBenchmark}
             className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
           >
-            {runningBenchmark ? 'Running Benchmark (this may take a minute)...' : 'Run Benchmark (5 questions)'}
+            {runningBenchmark ? 'Running Benchmark (this may take a minute)...' : 'Run Benchmark (1 question)'}
           </button>
         </div>
       )}

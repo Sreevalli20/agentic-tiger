@@ -34,7 +34,11 @@ async def run_benchmark(
         # Run benchmark directly (not in background for simpler deployment)
         # Use a small limit by default for web requests
         if limit is None:
-            limit = 5
+            limit = 1  # Reduce to 1 question for faster web execution
+        
+        # If running all 3 pipelines, limit to 1 question to avoid timeout
+        if len(pipeline_types) == 3 and limit > 1:
+            limit = 1
         
         result = await benchmark_runner.run_benchmark(
             pipelines=pipeline_types,

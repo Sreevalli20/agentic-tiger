@@ -37,8 +37,9 @@ class BenchmarkRunner:
             public_path = Path(questions_path) / "eval_public.jsonl"
             
             if not public_path.exists():
-                logger.error(f"Public questions file not found: {public_path}")
-                return []
+                logger.warning(f"Public questions file not found: {public_path}, using built-in demo questions")
+                # Use built-in demo questions from DEMO_QUESTIONS.md
+                return self._get_demo_questions()
             
             questions = []
             with open(public_path, 'r', encoding='utf-8') as f:
@@ -52,6 +53,45 @@ class BenchmarkRunner:
         except Exception as e:
             logger.error(f"Failed to load evaluation questions: {e}")
             return []
+    
+    def _get_demo_questions(self) -> List[Dict[str, Any]]:
+        """Get built-in demo questions for benchmarking.
+        
+        Returns:
+            List of demo evaluation questions
+        """
+        return [
+            {
+                "qid": "demo_001",
+                "question": "Who won the gold medal in the men's 20 kilometres walk athletics event at the Summer Olympics held immediately before 2016?",
+                "answer": ["Chen Ding", "Chen Ding (China)", "China"],
+                "qtype": "factual"
+            },
+            {
+                "qid": "demo_002",
+                "question": "Who won the gold medal in the women's road time trial at the 2012 Summer Olympics?",
+                "answer": ["Kristin Armstrong", "Kristin Armstrong (USA)", "USA"],
+                "qtype": "factual"
+            },
+            {
+                "qid": "demo_003",
+                "question": "Which country won the gold medal in men's K-2 1000 metres canoeing at the 2012 Summer Olympics?",
+                "answer": ["Hungary", "Rudolf Dombi", "Roland Kökény"],
+                "qtype": "factual"
+            },
+            {
+                "qid": "demo_004",
+                "question": "Who won the gold medal in the men's 110 metres hurdles at the 2008 Summer Olympics, and what was their winning time?",
+                "answer": ["Dayron Robles", "12.93", "Dayron Robles (Cuba)", "Cuba"],
+                "qtype": "factual"
+            },
+            {
+                "qid": "demo_005",
+                "question": "Did the United States win any medals in the men's 400 metres hurdles at the 2004 Summer Olympics?",
+                "answer": ["No", "No medals", "Did not win any medals"],
+                "qtype": "verification"
+            }
+        ]
     
     async def run_benchmark(
         self,
