@@ -9,6 +9,7 @@ export default function Metrics() {
   const [metrics, setMetrics] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [runningBenchmark, setRunningBenchmark] = useState(false)
 
   useEffect(() => {
     loadBenchmarkRuns()
@@ -58,6 +59,22 @@ export default function Metrics() {
     loadMetrics(runId)
   }
 
+  const handleRunBenchmark = async () => {
+    try {
+      setRunningBenchmark(true)
+      setError(null)
+      const result = await api.runBenchmark(['rag', 'graphrag', 'agentic'], 5) // Use 5 questions for faster execution
+      console.log('Benchmark completed:', result)
+      // Reload benchmark runs immediately since it's now synchronous
+      await loadBenchmarkRuns()
+    } catch (error) {
+      console.error('Failed to run benchmark:', error)
+      setError(error instanceof Error ? error.message : 'Failed to run benchmark')
+    } finally {
+      setRunningBenchmark(false)
+    }
+  }
+
   const accuracyData = metrics ? Object.entries(metrics).map(([pipeline, data]: [string, any]) => ({
     name: pipeline === 'rag' ? 'RAG' : pipeline === 'graphrag' ? 'GraphRAG' : 'Agentic',
     accuracy: (data.accuracy * 100).toFixed(1)
@@ -77,6 +94,7 @@ export default function Metrics() {
   const avgAccuracy = metrics ? (Object.values(metrics).reduce((sum: number, data: any) => sum + data.accuracy, 0) / Object.keys(metrics).length * 100).toFixed(1) : '--'
   const avgLatency = metrics ? (Object.values(metrics).reduce((sum: number, data: any) => sum + data.avg_latency, 0) / Object.keys(metrics).length).toFixed(0) : '--'
   const avgTokens = metrics ? (Object.values(metrics).reduce((sum: number, data: any) => sum + data.avg_tokens, 0) / Object.keys(metrics).length).toFixed(0) : '--'
+  const benchmarkTimestamp = benchmarkRuns.length > 0 && benchmarkRuns[0].timestamp ? new Date(benchmarkRuns[0].timestamp).toLocaleString() : null
 
   return (
     <div className="space-y-6">
@@ -111,16 +129,32 @@ export default function Metrics() {
       {/* No data */}
       {!loading && benchmarkRuns.length === 0 && (
         <div className="glass-panel p-6 border-l-4 border-yellow-500">
-          <p className="text-sm text-yellow-400">
+          <p className="text-sm text-yellow-400 mb-4">
             <strong>No benchmark results available.</strong> Run the benchmark to generate real metrics.
           </p>
+          <button
+            onClick={handleRunBenchmark}
+            disabled={runningBenchmark}
+            className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+          >
+            {runningBenchmark ? 'Running Benchmark (this may take a minute)...' : 'Run Benchmark (5 questions)'}
+          </button>
         </div>
       )}
 
       {/* Benchmark selector */}
       {benchmarkRuns.length > 0 && (
         <div className="glass-panel p-4">
-          <label className="block text-sm font-medium text-gray-400 mb-2">Select Benchmark Run</label>
+          <div className="flex justify-between items-center mb-2">
+            <label className="block text-sm font-medium text-gray-400">Select Benchmark Run</label>
+            <button
+              onClick={handleRunBenchmark}
+              disabled={runningBenchmark}
+              className="px-3 py-1 bg-cyan-600 hover:bg-cyan-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white text-sm rounded-lg transition-colors"
+            >
+              {runningBenchmark ? 'Running...' : 'Run New Benchmark'}
+            </button>
+          </div>
           <select
             value={selectedRun || ''}
             onChange={(e) => handleRunChange(e.target.value)}
@@ -132,6 +166,9 @@ export default function Metrics() {
               </option>
             ))}
           </select>
+          {benchmarkTimestamp && (
+            <p className="text-xs text-gray-500 mt-2">Latest benchmark: {benchmarkTimestamp}</p>
+          )}
         </div>
       )}
 

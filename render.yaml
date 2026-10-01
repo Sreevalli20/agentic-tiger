@@ -38,3 +38,5 @@ services:
         value: "60"
       - key: CORS_ORIGINS
         value: https://frontend-gamma-ecru-m8dndislo7.vercel.app
+      - key: STORAGE_DB_PATH
+        value: ./data/graphprobe.db

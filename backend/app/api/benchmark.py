@@ -31,28 +31,27 @@ async def run_benchmark(
         else:
             pipeline_types = [PipelineType.RAG, PipelineType.GRAPHRAG, PipelineType.AGENTIC]
         
-        # Run benchmark in background with timeout handling
-        def run_task():
-            import asyncio
-            try:
-                asyncio.run(benchmark_runner.run_benchmark(
-                    pipelines=pipeline_types,
-                    limit=limit,
-                    resume_from=resume_from
-                ))
-            except Exception as e:
-                logger.error(f"Benchmark task failed: {e}")
+        # Run benchmark directly (not in background for simpler deployment)
+        # Use a small limit by default for web requests
+        if limit is None:
+            limit = 5
         
-        background_tasks.add_task(run_task)
+        result = await benchmark_runner.run_benchmark(
+            pipelines=pipeline_types,
+            limit=limit,
+            resume_from=resume_from
+        )
         
         return {
-            "status": "started",
-            "message": "Benchmark started in background",
+            "status": "completed",
+            "run_id": result.run_id,
+            "total_questions": result.total_questions,
+            "completed_questions": result.completed_questions,
             "pipelines": [p.value for p in pipeline_types],
             "limit": limit
         }
     except Exception as e:
-        logger.error(f"Failed to start benchmark: {e}")
+        logger.error(f"Failed to run benchmark: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
