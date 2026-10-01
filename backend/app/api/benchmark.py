@@ -42,13 +42,18 @@ async def run_benchmark(
             resume_from=resume_from
         )
         
+        # Calculate metrics immediately and return them
+        metrics = benchmark_runner.calculate_metrics(result.run_id)
+        
         return {
             "status": "completed",
             "run_id": result.run_id,
             "total_questions": result.total_questions,
             "completed_questions": result.completed_questions,
             "pipelines": [p.value for p in pipeline_types],
-            "limit": limit
+            "limit": limit,
+            "metrics": metrics,
+            "timestamp": result.configuration.get("timestamp")
         }
     except Exception as e:
         logger.error(f"Failed to run benchmark: {e}")

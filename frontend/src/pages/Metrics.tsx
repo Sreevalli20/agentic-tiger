@@ -65,8 +65,21 @@ export default function Metrics() {
       setError(null)
       const result = await api.runBenchmark(['rag', 'graphrag', 'agentic'], 5) // Use 5 questions for faster execution
       console.log('Benchmark completed:', result)
-      // Reload benchmark runs immediately since it's now synchronous
-      await loadBenchmarkRuns()
+      // If metrics are returned directly, use them
+      if (result.metrics) {
+        setMetrics(result.metrics)
+        setSelectedRun(result.run_id)
+        // Add to benchmark runs list
+        setBenchmarkRuns([{
+          run_id: result.run_id,
+          total_results: result.total_questions * 3, // 3 pipelines per question
+          timestamp: result.timestamp,
+          status: 'completed'
+        }])
+      } else {
+        // Reload benchmark runs if metrics not returned
+        await loadBenchmarkRuns()
+      }
     } catch (error) {
       console.error('Failed to run benchmark:', error)
       setError(error instanceof Error ? error.message : 'Failed to run benchmark')
