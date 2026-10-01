@@ -37,4 +37,4 @@ services:
       - key: OPERATION_TIMEOUT_SECONDS
         value: "60"
       - key: CORS_ORIGINS
-        value: https://frontend-d73hry92o-siris-projects-3809a50c.vercel.app,https://frontend-iq5jucuoe-siris-projects-3809a50c.vercel.app
+        value: https://frontend-d73hry92o-siris-projects-3809a50c.vercel.app,https://frontend-iq5jucuoe-siris-projects-3809a50c.vercel.app,https://frontend-59w3ywhko-siris-projects-3809a50.vercel.app
