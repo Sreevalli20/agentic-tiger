@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     cors_origins: List[str] = [
         "http://localhost:3000",
         "http://localhost:5173",
-        "https://frontend-iq5jucuoe-siris-projects-3809a50c.vercel.app"
+        "https://frontend-d73hry92o-siris-projects-3809a50c.vercel.app"
     ]
     
     # Data Configuration
