@@ -2,7 +2,6 @@
 from typing import Dict, Any, List, Optional
 from openai import OpenAI
 import anthropic
-import google.genai as genai
 from groq import Groq
 import warnings
 import asyncio
@@ -26,11 +25,9 @@ class LLMService:
         # Prefer provider-specific API keys
         if self.provider == "groq":
             api_key = settings.groq_api_key
-        elif self.provider == "google":
-            api_key = settings.google_api_key if settings.google_api_key else settings.llm_api_key
         else:
             api_key = settings.llm_api_key
-        
+
         if not api_key:
             logger.warning(f"LLM API key not configured for provider {self.provider}")
             return
@@ -42,10 +39,6 @@ class LLMService:
             elif self.provider == "anthropic":
                 self.client = anthropic.Anthropic(api_key=api_key)
                 logger.info("Initialized Anthropic client")
-            elif self.provider == "google":
-                # Use the new google.genai client
-                self.client = genai.Client(api_key=api_key)
-                logger.info("Initialized Google Gemini client")
             elif self.provider == "groq":
                 self.client = Groq(api_key=api_key)
                 logger.info("Initialized Groq client")
@@ -80,8 +73,6 @@ Provide a clear, well-supported answer with citations to the relevant documents.
                 return await self._generate_openai(prompt)
             elif self.provider == "anthropic":
                 return await self._generate_anthropic(prompt)
-            elif self.provider == "google":
-                return await self._generate_google(prompt)
             elif self.provider == "groq":
                 return await self._generate_groq(prompt)
             else:
@@ -139,14 +130,14 @@ Provide a clear, well-supported answer with citations to the relevant documents.
                 ),
                 timeout=settings.operation_timeout_seconds
             )
-            
+
             answer = response.content[0].text
             tokens = {
                 "input": response.usage.input_tokens,
                 "output": response.usage.output_tokens,
                 "total": response.usage.input_tokens + response.usage.output_tokens
             }
-            
+
             return answer, tokens
         except asyncio.TimeoutError:
             logger.error(f"Anthropic generation timed out after {settings.operation_timeout_seconds}s")
@@ -155,40 +146,7 @@ Provide a clear, well-supported answer with citations to the relevant documents.
                 "output": 0,
                 "total": 0
             }
-    
-    async def _generate_google(self, prompt: str) -> tuple[str, Dict[str, int]]:
-        """Generate answer using Google Gemini with timeout protection."""
-        try:
-            # Use the new google.genai API with timeout
-            response = await asyncio.wait_for(
-                asyncio.to_thread(
-                    self.client.models.generate_content,
-                    model=settings.llm_model,
-                    contents=prompt,
-                    config=genai.GenerateContentConfig(
-                        max_output_tokens=500,
-                        temperature=0.7,
-                    )
-                ),
-                timeout=settings.operation_timeout_seconds
-            )
-            
-            answer = response.text
-            # Estimate tokens since new API may not provide usage
-            tokens = {
-                "input": len(prompt.split()),
-                "output": len(answer.split()),
-                "total": len(prompt.split()) + len(answer.split())
-            }
-            
-            return answer, tokens
-        except asyncio.TimeoutError:
-            logger.error(f"Google generation timed out after {settings.operation_timeout_seconds}s")
-            raise TimeoutError(f"Google generation timed out after {settings.operation_timeout_seconds}s")
-        except Exception as e:
-            logger.error(f"Google generation failed: {e}")
-            raise e
-    
+
     async def _generate_groq(self, prompt: str) -> tuple[str, Dict[str, int]]:
         """Generate answer using Groq with timeout protection."""
         try:

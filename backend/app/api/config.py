@@ -15,7 +15,7 @@ async def get_config():
     return {
         "llm_provider": settings.llm_provider,
         "llm_model": settings.llm_model,
-        "llm_configured": bool(settings.llm_api_key),
+        "llm_configured": bool(settings.groq_api_key or settings.llm_api_key),
         "tigergraph_host": settings.tg_host,
         "tigergraph_port": settings.tg_port,
         "tigergraph_graph": settings.tg_graphname,

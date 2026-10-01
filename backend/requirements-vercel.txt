@@ -11,7 +11,7 @@ python-dotenv>=1.0.0
 pytigergraph>=2.0.0
 
 # LLM
-google-genai>=1.0.0
+groq>=0.11.0
 
 # Vector
 chromadb>=0.5.0

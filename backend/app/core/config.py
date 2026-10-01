@@ -9,12 +9,9 @@ class Settings(BaseSettings):
     # LLM Configuration
     llm_provider: str = "groq"
     llm_api_key: str = ""
-    llm_model: str = "openai/gpt-oss-20b"
+    llm_model: str = "llama-3.3-70b-versatile"
     llm_base_url: str = "https://api.openai.com/v1"
-    
-    # Alternative Google AI key variable
-    google_api_key: str = ""
-    
+
     # Groq API key
     groq_api_key: str = ""
     
@@ -69,6 +66,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ["../.env", ".env"]
         case_sensitive = False
+        extra = "ignore"
 
 
 settings = Settings()

@@ -111,7 +111,7 @@ async def run_evaluation():
         "total_questions": len(results),
         "generated_at": datetime.utcnow().isoformat() + "Z",
         "llm_provider": "groq",
-        "llm_model": "openai/gpt-oss-20b",
+        "llm_model": "llama-3.3-70b-versatile",
         "results": results
     }
     

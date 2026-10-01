@@ -14,8 +14,8 @@ router = APIRouter()
 @router.get("/health", response_model=HealthResponse)
 async def health_check(force_init: bool = False):
     """Health check endpoint with lightweight status checks."""
-    # Check LLM (prefer GOOGLE_API_KEY, fallback to LLM_API_KEY)
-    llm_configured = bool(settings.google_api_key or settings.llm_api_key)
+    # Check LLM (prefer GROQ_API_KEY, fallback to LLM_API_KEY)
+    llm_configured = bool(settings.groq_api_key or settings.llm_api_key)
     
     # Check TigerGraph configuration (don't actually connect to avoid heavy initialization)
     tigergraph_configured = bool(settings.tg_host and settings.tg_secret)
@@ -283,7 +283,7 @@ async def health_status():
         
         return {
             "status": "healthy",
-            "llm_configured": bool(settings.google_api_key or settings.llm_api_key),
+            "llm_configured": bool(settings.groq_api_key or settings.llm_api_key),
             "tigergraph_configured": bool(settings.tg_host and settings.tg_secret),
             "vector_db": stats
         }
