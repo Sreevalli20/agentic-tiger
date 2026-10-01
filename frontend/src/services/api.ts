@@ -1,6 +1,17 @@
 /** API client for backend communication. */
 const API_BASE_URL = 'https://graphprobe-ai-backend.onrender.com';
 
+interface BenchmarkRunResponse {
+  status: string;
+  run_id: string;
+  total_questions: number;
+  completed_questions: number;
+  pipelines: string[];
+  limit: number;
+  metrics: any;
+  timestamp?: string;
+}
+
 export const api = {
   /**
    * Generic API request handler with timeout protection
@@ -86,13 +97,13 @@ export const api = {
   /**
    * Run benchmark
    */
-  async runBenchmark(pipelines?: string[], limit?: number, resumeFrom?: string) {
+  async runBenchmark(pipelines?: string[], limit?: number, resumeFrom?: string): Promise<BenchmarkRunResponse> {
     const params = new URLSearchParams();
     if (pipelines) pipelines.forEach(p => params.append('pipelines', p));
     if (limit) params.append('limit', limit.toString());
     if (resumeFrom) params.append('resume_from', resumeFrom);
-    
-    return this.request(`/api/benchmark/run?${params.toString()}`, {
+
+    return this.request<BenchmarkRunResponse>(`/api/benchmark/run?${params.toString()}`, {
       method: 'POST',
     });
   },

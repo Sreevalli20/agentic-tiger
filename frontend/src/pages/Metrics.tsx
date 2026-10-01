@@ -63,7 +63,7 @@ export default function Metrics() {
     try {
       setRunningBenchmark(true)
       setError(null)
-      const result = await api.runBenchmark(['rag', 'graphrag', 'agentic'], 1) as any // Use 1 question for faster execution
+      const result = await api.runBenchmark(['rag', 'graphrag', 'agentic'], 1) // Use 1 question for faster execution
       console.log('Benchmark completed:', result)
       // If metrics are returned directly, use them
       if (result.metrics) {
