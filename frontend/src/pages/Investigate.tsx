@@ -59,6 +59,29 @@ export default function Investigate() {
     }
   }
 
+  const getStepLabel = (tool: string) => {
+    switch (tool) {
+      case 'entity_link':
+        return 'Entity Linking'
+      case 'graph_traverse':
+        return 'Graph Traversal'
+      case 'vector_search':
+        return 'Vector Search'
+      case 'document_retrieve':
+        return 'Document Retrieval'
+      case 'evaluate_evidence':
+        return 'Evidence Evaluation'
+      case 'aggregate':
+        return 'Aggregation'
+      case 'verify':
+        return 'Verification'
+      case 'stop':
+        return 'Stopping Decision'
+      default:
+        return tool
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="glass-panel p-6">
@@ -161,90 +184,150 @@ export default function Investigate() {
       {/* Results */}
       {result && !isLoading && (
         <div className="space-y-6">
+          {/* User Question */}
+          <div className="glass-panel p-6">
+            <h3 className="text-sm font-medium text-gray-400 mb-2 uppercase tracking-wide">User Question</h3>
+            <div className="bg-navy-900/50 rounded-lg p-4 border border-navy-700">
+              <p className="text-gray-100 text-lg">{question}</p>
+            </div>
+          </div>
+
           {/* Final Answer Section */}
           <div className="glass-panel p-6 border-l-4 border-cyan-500">
             <div className="flex items-center space-x-2 mb-4">
               <CheckCircle className="h-5 w-5 text-cyan-400" />
-              <h3 className="text-lg font-semibold text-cyan-400">FINAL FINDING</h3>
+              <h3 className="text-lg font-semibold text-cyan-400">Investigation Complete</h3>
             </div>
             <div className="bg-navy-900/50 rounded-lg p-5 border border-navy-700">
               <p className="text-gray-100 text-lg leading-relaxed">{result.result?.answer || 'No answer generated'}</p>
             </div>
           </div>
 
-          {/* Key Metrics */}
+          {/* Investigation Summary */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="glass-panel p-4">
-              <div className="flex items-center space-x-2 mb-2">
-                <Zap className="h-4 w-4 text-cyan-400" />
-                <h3 className="text-xs font-medium text-gray-400">Confidence</h3>
+            {result.result?.confidence !== undefined && (
+              <div className="glass-panel p-4">
+                <div className="flex items-center space-x-2 mb-2">
+                  <Zap className="h-4 w-4 text-cyan-400" />
+                  <h3 className="text-xs font-medium text-gray-400">Confidence</h3>
+                </div>
+                <p className="text-xl font-bold text-cyan-400">
+                  {(result.result.confidence * 100).toFixed(1)}%
+                </p>
               </div>
-              <p className="text-xl font-bold text-cyan-400">
-                {(result.result?.confidence * 100).toFixed(1)}%
-              </p>
-            </div>
-            <div className="glass-panel p-4">
-              <div className="flex items-center space-x-2 mb-2">
-                <Activity className="h-4 w-4 text-cyan-400" />
-                <h3 className="text-xs font-medium text-gray-400">Latency</h3>
+            )}
+            {result.result?.evidence && (
+              <div className="glass-panel p-4">
+                <div className="flex items-center space-x-2 mb-2">
+                  <GitBranch className="h-4 w-4 text-cyan-400" />
+                  <h3 className="text-xs font-medium text-gray-400">Evidence</h3>
+                </div>
+                <p className="text-xl font-bold text-gray-100">
+                  {result.result.evidence.length}
+                </p>
               </div>
-              <p className="text-xl font-bold text-gray-100">
-                {result.result?.metrics?.total_latency_ms?.toFixed(0)}ms
-              </p>
-            </div>
-            <div className="glass-panel p-4">
-              <div className="flex items-center space-x-2 mb-2">
-                <GitBranch className="h-4 w-4 text-cyan-400" />
-                <h3 className="text-xs font-medium text-gray-400">Evidence</h3>
+            )}
+            {result.result?.metrics?.total_tokens && (
+              <div className="glass-panel p-4">
+                <div className="flex items-center space-x-2 mb-2">
+                  <Search className="h-4 w-4 text-cyan-400" />
+                  <h3 className="text-xs font-medium text-gray-400">Tokens</h3>
+                </div>
+                <p className="text-xl font-bold text-gray-100">
+                  {result.result.metrics.total_tokens}
+                </p>
               </div>
-              <p className="text-xl font-bold text-gray-100">
-                {result.result?.evidence?.length || 0}
-              </p>
-            </div>
-            <div className="glass-panel p-4">
-              <div className="flex items-center space-x-2 mb-2">
-                <Search className="h-4 w-4 text-cyan-400" />
-                <h3 className="text-xs font-medium text-gray-400">Tokens</h3>
+            )}
+            {result.result?.metrics?.total_latency_ms && (
+              <div className="glass-panel p-4">
+                <div className="flex items-center space-x-2 mb-2">
+                  <Activity className="h-4 w-4 text-cyan-400" />
+                  <h3 className="text-xs font-medium text-gray-400">Latency</h3>
+                </div>
+                <p className="text-xl font-bold text-gray-100">
+                  {result.result.metrics.total_latency_ms.toFixed(0)}ms
+                </p>
               </div>
-              <p className="text-xl font-bold text-gray-100">
-                {result.result?.metrics?.total_tokens || 'N/A'}
-              </p>
-            </div>
+            )}
           </div>
 
-          {/* Why This Answer Section */}
-          <div className="glass-panel p-6">
-            <h3 className="text-lg font-semibold text-gray-100 mb-4">WHY THIS ANSWER</h3>
-            <div className="bg-navy-900/50 rounded-lg p-4 border border-navy-700">
-              <div className="space-y-3 text-sm">
-                <div className="flex items-start space-x-2">
-                  <div className="h-2 w-2 rounded-full bg-cyan-400 mt-2 flex-shrink-0" />
-                  <div>
-                    <p className="text-gray-400">Pipeline used:</p>
-                    <p className="text-gray-100 capitalize">{pipeline === 'rag' ? 'RAG' : pipeline === 'graphrag' ? 'GraphRAG' : 'Agentic GraphRAG'}</p>
-                  </div>
+          {/* Connected Entities */}
+          {result.result?.graph_context?.entities && result.result.graph_context.entities.length > 0 && (
+            <div className="glass-panel p-6">
+              <h3 className="text-lg font-semibold text-gray-100 mb-4">Connected Entities ({result.result.graph_context.entities.length})</h3>
+              <div className="bg-navy-900/50 rounded-lg p-4 border border-navy-700">
+                <div className="flex flex-wrap gap-2">
+                  {result.result.graph_context.entities.map((entity: any, index: number) => (
+                    <span
+                      key={index}
+                      className="px-3 py-1 bg-cyan-500/10 border border-cyan-500/30 rounded-full text-sm text-cyan-400"
+                    >
+                      {entity.name || entity}
+                    </span>
+                  ))}
                 </div>
-                {result.result?.graph_context && (
-                  <div className="flex items-start space-x-2">
-                    <div className="h-2 w-2 rounded-full bg-cyan-400 mt-2 flex-shrink-0" />
-                    <div>
-                      <p className="text-gray-400">Graph context:</p>
-                      <p className="text-gray-100">{result.result.graph_context.entities?.length || 0} entities, {result.result.graph_context.relationships?.length || 0} relationships</p>
-                    </div>
-                  </div>
-                )}
-                {result.result?.agent_trace && (
-                  <div className="flex items-start space-x-2">
-                    <div className="h-2 w-2 rounded-full bg-cyan-400 mt-2 flex-shrink-0" />
-                    <div>
-                      <p className="text-gray-400">Investigation steps:</p>
-                      <p className="text-gray-100">{result.result.agent_trace.steps?.length || 0} steps executed</p>
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
-          </div>
+          )}
+
+          {/* Agentic Investigation Trace */}
+          {result.result?.agent_trace?.steps && result.result.agent_trace.steps.length > 0 && (
+            <div className="glass-panel p-6">
+              <h3 className="text-lg font-semibold text-gray-100 mb-4">Agentic Investigation Trace</h3>
+              <div className="space-y-4">
+                {result.result.agent_trace.steps.map((step: any, index: number) => {
+                  const stepLabel = getStepLabel(step.tool)
+                  return (
+                    <div key={index} className="relative">
+                      <div className="flex items-start space-x-4">
+                        <div className="flex-shrink-0">
+                          <div className="h-10 w-10 rounded-full bg-cyan-500/20 border-2 border-cyan-500 flex items-center justify-center">
+                            <Activity className="h-5 w-5 text-cyan-400" />
+                          </div>
+                        </div>
+                        <div className="flex-1 bg-navy-900/50 rounded-lg p-4 border border-navy-700">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-sm font-semibold text-cyan-400 uppercase tracking-wide">
+                              {stepLabel}
+                            </span>
+                            {step.latency_ms && (
+                              <span className="text-xs text-gray-500">
+                                {Math.round(step.latency_ms)}ms
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm text-gray-300">{step.result_summary}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Why the Agent Stopped */}
+          {result.result?.agent_trace?.stopping_reason && (
+            <div className="glass-panel p-6 border-l-4 border-l-cyan-500">
+              <div className="flex items-center space-x-3 mb-4">
+                <CheckCircle className="h-5 w-5 text-cyan-400" />
+                <h3 className="text-lg font-semibold text-cyan-400">Why the Agent Stopped</h3>
+              </div>
+              <div className="bg-navy-900/50 rounded-lg p-4 border border-navy-700">
+                <p className="text-gray-100">{result.result.agent_trace.stopping_reason}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Investigation ID */}
+          {result.investigation_id && (
+            <div className="glass-panel p-6">
+              <h3 className="text-lg font-semibold text-gray-100 mb-4">Investigation ID</h3>
+              <div className="bg-navy-900/50 rounded-lg p-4 border border-navy-700">
+                <p className="text-sm text-cyan-400 font-mono">{result.investigation_id}</p>
+              </div>
+            </div>
+          )}
 
           {/* Evidence Section */}
           {result.result?.evidence && result.result.evidence.length > 0 && (
@@ -289,59 +372,25 @@ export default function Investigate() {
           )}
 
           {/* Investigation Links */}
-          <div className="glass-panel p-6">
-            <h3 className="text-lg font-semibold text-gray-100 mb-4">INVESTIGATION DETAILS</h3>
-            <div className="bg-navy-900/50 rounded-lg p-4 border border-navy-700">
-              <p className="text-sm text-cyan-400 font-mono mb-3">{result.investigation_id}</p>
-              <div className="flex space-x-4">
-                <Link
-                  to={`/trace/${result.investigation_id}`}
-                  className="flex items-center space-x-2 text-sm text-cyan-400 hover:text-cyan-300"
-                >
-                  <Activity className="h-4 w-4" />
-                  <span>View Full Trace</span>
-                </Link>
-                <Link
-                  to={`/evidence/${result.investigation_id}`}
-                  className="flex items-center space-x-2 text-sm text-cyan-400 hover:text-cyan-300"
-                >
-                  <GitBranch className="h-4 w-4" />
-                  <span>View Evidence Graph</span>
-                </Link>
-              </div>
-            </div>
-          </div>
-
-          {/* Detailed Metrics */}
-          {result.result?.metrics && (
+          {result.investigation_id && (
             <div className="glass-panel p-6">
-              <h3 className="text-lg font-semibold text-gray-100 mb-4">PERFORMANCE METRICS</h3>
+              <h3 className="text-lg font-semibold text-gray-100 mb-4">Investigation Details</h3>
               <div className="bg-navy-900/50 rounded-lg p-4 border border-navy-700">
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                  <div>
-                    <span className="text-gray-500 block">Total Latency:</span>
-                    <span className="text-gray-300">{result.result.metrics.total_latency_ms?.toFixed(0)}ms</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-500 block">Total Tokens:</span>
-                    <span className="text-gray-300">{result.result.metrics.total_tokens}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-500 block">Retrieval Time:</span>
-                    <span className="text-gray-300">{result.result.metrics.retrieval_time_ms?.toFixed(0)}ms</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-500 block">Generation Time:</span>
-                    <span className="text-gray-300">{result.result.metrics.generation_time_ms?.toFixed(0)}ms</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-500 block">Chunks Retrieved:</span>
-                    <span className="text-gray-300">{result.result.metrics.chunks_retrieved}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-500 block">Retrieval Steps:</span>
-                    <span className="text-gray-300">{result.result.metrics.retrieval_steps}</span>
-                  </div>
+                <div className="flex space-x-4">
+                  <Link
+                    to={`/agent-trace/${result.investigation_id}`}
+                    className="flex items-center space-x-2 text-sm text-cyan-400 hover:text-cyan-300"
+                  >
+                    <Activity className="h-4 w-4" />
+                    <span>View Full Trace</span>
+                  </Link>
+                  <Link
+                    to={`/evidence/${result.investigation_id}`}
+                    className="flex items-center space-x-2 text-sm text-cyan-400 hover:text-cyan-300"
+                  >
+                    <GitBranch className="h-4 w-4" />
+                    <span>View Evidence Graph</span>
+                  </Link>
                 </div>
               </div>
             </div>

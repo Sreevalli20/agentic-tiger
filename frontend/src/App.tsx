@@ -19,9 +19,9 @@ function App() {
             <Route path="/investigate" element={<Investigate />} />
             <Route path="/compare" element={<Compare />} />
             <Route path="/metrics" element={<Metrics />} />
-            <Route path="/settings" element={<Settings />} />
             <Route path="/agent-trace/:runId" element={<AgentTrace />} />
             <Route path="/evidence/:runId" element={<EvidenceGraph />} />
+            <Route path="/settings" element={<Settings />} />
           </Routes>
         </Layout>
       </InvestigationProvider>
